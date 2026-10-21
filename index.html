@@ -760,6 +760,11 @@ const PUZ = {
   order: { nm: "정비 작업대", ic: "🔢", spr: "bench", w: 3, h: 3, min: 2, wt: 2 },
   valves: { nm: "보일러 밸브", ic: "🔧", spr: "furnace", w: 2, h: 3, min: 3, wt: 1.3 },
   simon: { nm: "경보 제어반", ic: "🚨", spr: "wardrobe", w: 2, h: 3, min: 4, wt: 1.1 },
+  bolts: { nm: "플랜지 조립대", ic: "🔩", spr: "bench", w: 3, h: 3, min: 1, wt: 1.3 },
+  hazard: { nm: "작업장 점검판", ic: "⚠️", spr: "cabinet", w: 3, h: 3, min: 1, wt: 1.3 },
+  lube: { nm: "윤활 점검대", ic: "🛢️", spr: "dresser", w: 3, h: 3, min: 2, wt: 1.2 },
+  gauge: { nm: "측정 공구함", ic: "📏", spr: "wardrobe", w: 2, h: 3, min: 3, wt: 1.2 },
+  diag: { nm: "고장 진단반", ic: "🩺", spr: "furnace", w: 2, h: 3, min: 4, wt: 1.2 },
   chest: { nm: "보급 상자", ic: "🎁", spr: "chest", w: 1, h: 1, min: 1, wt: 0 },
 };
 
@@ -1200,6 +1205,11 @@ function openStation(st) {
   else if (st.type === "order") runOrder(win);
   else if (st.type === "valves") runValves(win);
   else if (st.type === "simon") runSimon(win);
+  else if (st.type === "bolts") runBolts(win);
+  else if (st.type === "hazard") runHazard(win);
+  else if (st.type === "lube") runPick(LUBE, 3, "🛢️ 알맞은 윤활 방법을 고르세요", win);
+  else if (st.type === "diag") runPick(DIAG, 3, "🩺 증상의 원인을 고르세요", win);
+  else if (st.type === "gauge") runGauge(win);
 }
 function stationDone(st) {
   st.solved = true; G.fs.solved++; const rw = st.reward; let html = "";
@@ -1302,6 +1312,78 @@ function runValves(onWin) {
 }
 
 // ---------- 경보 램프 기억 ----------
+
+// ---------- 미니게임 (플랜지 조립 · 위험요소 · 윤활 · 고장진단 · 눈금 읽기) ----------
+const LUBE = [
+  ["고속으로 회전하는 소형 볼 베어링", "오일 윤활(또는 소량 그리스)", "굵은 그리스를 가득 채운다", "윤활하지 않는다", "물을 뿌려 식힌다"],
+  ["저속·고하중 베어링, 먼지가 많은 곳", "그리스 윤활", "묽은 스핀들유", "공기만 불어 준다", "윤활유를 모두 빼 둔다"],
+  ["그리스 주입 후 베어링이 과열될 때 가장 흔한 원인", "그리스를 너무 많이 넣음", "그리스 색이 갈색임", "베어링이 새것임", "주변 온도가 낮음"],
+  ["급유 전 가장 먼저 할 일", "설비를 정지하고 급유구를 깨끗이 닦는다", "운전 중 손으로 바로 주입한다", "급유구를 막아 둔다", "다른 종류 오일과 섞는다"],
+  ["윤활유의 가장 중요한 성질", "점도", "색깔", "냄새", "포장 용기"],
+  ["서로 다른 종류의 그리스를 섞어 쓰면", "성질이 변해 윤활 성능이 떨어질 수 있다", "성능이 두 배가 된다", "아무 영향 없다", "녹이 저절로 제거된다"],
+  ["체인·와이어로프처럼 노출된 부분의 급유", "점착성이 좋은 윤활제를 바른다", "물로 닦기만 한다", "건조한 상태로 둔다", "연마제를 바른다"],
+  ["윤활의 목적이 아닌 것", "부품의 접촉면을 일부러 거칠게 하기", "마찰 감소", "냉각", "방청·밀봉"],
+];
+const DIAG = [
+  ["베어링에서 소음과 함께 심한 발열이 난다", "윤활 부족 또는 베어링 손상", "전선 피복 벗겨짐", "볼트가 너무 짧음", "도장 불량"],
+  ["V벨트 전동 장치에서 '끽끽' 소리가 나고 벨트가 미끄러진다", "벨트 장력 부족 또는 마모", "기름 탱크 부족", "나사산 손상", "압력계 고장"],
+  ["유압 펌프에서 심한 소음과 거품이 생긴다", "작동유 부족·공기 흡입(캐비테이션)", "전원 접지 불량", "체인 늘어남", "기어 이 끝 마모"],
+  ["공압 실린더가 힘이 약하고 속도가 느리다", "공기 누설 또는 공급 압력 부족", "윤활유 과다", "모터 극수 부족", "축 정렬 불량"],
+  ["회전축이 돌 때 주기적으로 진동한다", "축 정렬 불량 또는 불평형", "작동유 색 변화", "조명 불량", "도장 벗겨짐"],
+  ["유압 작동유 온도가 계속 올라간다", "냉각기 불량·릴리프 밸브 과다 작동", "공기 필터 막힘", "스프링 상수 큼", "게이지 눈금 흐림"],
+  ["기어 박스에서 오일이 새어 나온다", "실(씰) 마모 또는 볼트 풀림", "전압 강하", "축 키 홈 없음", "윤활유 점도 지수 높음"],
+  ["전동기가 과열되고 보호 계전기(과부하)가 작동한다", "과부하 또는 냉각 불량", "유압 호스 꼬임", "나사 규격 불일치", "벨트 색상 변경"],
+];
+function runPick(DB, need, chip, onWin) {
+  const body = $("pz-body"); let ok = 0; const qs = shuffle(DB.slice());
+  const next = () => {
+    if (ok >= need) { body.innerHTML = '<div class="pzbar"><span class="chip">✅ 완료!</span></div>'; return setTimeout(onWin, 400); }
+    const c = qs[ok], opts = shuffle(c.slice(2).concat([c[1]]).slice(0, 4).concat(c[1] === undefined ? [] : []));
+    const list = shuffle([c[1], c[2], c[3], c[4]]);
+    body.innerHTML = `<div class="pzbar"><span class="chip">${chip} (${ok}/${need}, 오답 +4초)</span></div><div id="pzq">${escHtml(c[0])}</div><div class="brow" style="flex-direction:column;gap:6px">${list.map((t, i) => `<button class="bbtn" data-i="${i}">${escHtml(t)}</button>`).join("")}</div>`;
+    body.querySelectorAll("button[data-i]").forEach((b) => (b.onclick = () => {
+      if (list[b.dataset.i] === c[1]) { SFX.ok(); ok++; next(); }
+      else { SFX.ng(); addPenalty(4, "오답"); b.disabled = true; b.classList.add("ng"); }
+    }));
+  };
+  next(); pzKey = null;
+}
+function runBolts(onWin) {
+  const body = $("pz-body"), N = 8, ord = [0, 4, 2, 6, 1, 5, 3, 7]; let k = 0;
+  body.innerHTML = `<div class="pzbar"><span class="chip">🔩 별(대각선) 순서로 조이세요 (오답 +4초)</span></div><div id="pzq">플랜지 볼트는 한쪽으로 돌아가며 조이지 않고, 마주 보는 볼트를 번갈아 조여요. 맨 위 볼트부터 시작!</div><div style="position:relative;width:220px;height:220px;margin:8px auto">${Array.from({ length: N }, (_, i) => { const a = (i / N) * Math.PI * 2 - Math.PI / 2; return `<button class="stepbtn" data-i="${i}" style="position:absolute;left:${90 + 80 * Math.cos(a)}px;top:${90 + 80 * Math.sin(a)}px;width:40px;height:40px;padding:0">🔩</button>`; }).join("")}</div>`;
+  body.querySelectorAll("button[data-i]").forEach((b) => (b.onclick = () => {
+    if (b.disabled) return;
+    if (Number(b.dataset.i) === ord[k]) { b.disabled = true; b.classList.add("ok"); b.textContent = ++k; SFX.ok(); if (k === N) setTimeout(onWin, 400); }
+    else { SFX.ng(); addPenalty(4, "조임 순서 오류"); b.classList.add("ng", "shake"); setTimeout(() => b.classList.remove("ng", "shake"), 450); }
+  }));
+  pzKey = null;
+}
+function runHazard(onWin) {
+  const bad = ["🛢️💧 바닥에 흘린 기름", "⚡ 피복 벗겨진 전선", "⚙️ 덮개 없는 회전체", "🚬 작업장 흡연", "📦 통로를 막은 적재물", "🔥 인화물 옆 용접"];
+  const good = ["⛑️ 안전모 착용", "🧤 보호장갑 착용", "🥽 보안경 착용", "🧯 소화기 비치", "🦺 안전조끼 착용", "🪜 안전 난간 설치"];
+  const body = $("pz-body"), B = shuffle(bad).slice(0, 4), items = shuffle(B.map((t) => ({ t, h: 1 })).concat(shuffle(good).slice(0, 4).map((t) => ({ t, h: 0 })))); let f = 0;
+  body.innerHTML = `<div class="pzbar"><span class="chip">⚠️ 위험 요소 4개를 찾으세요 (안전한 것을 누르면 +3초)</span></div><div class="brow" style="flex-wrap:wrap;gap:6px;justify-content:center">${items.map((x, i) => `<button class="bbtn" data-i="${i}" style="min-width:46%">${escHtml(x.t)}</button>`).join("")}</div>`;
+  body.querySelectorAll("button[data-i]").forEach((b) => (b.onclick = () => {
+    if (b.disabled) return; const x = items[b.dataset.i]; b.disabled = true;
+    if (x.h) { b.classList.add("ok"); SFX.ok(); if (++f === 4) setTimeout(onWin, 400); }
+    else { b.classList.add("ng"); SFX.ng(); addPenalty(3, "안전한 항목을 위험으로 선택"); }
+  }));
+  pzKey = null;
+}
+function runGauge(onWin) {
+  const body = $("pz-body"); let round = 0;
+  const next = () => {
+    if (round >= 2) { body.innerHTML = '<div class="pzbar"><span class="chip">✅ 완료!</span></div>'; return setTimeout(onWin, 400); }
+    const main = 5 + Math.floor(Math.random() * 55), k = 1 + Math.floor(Math.random() * 19), ans = (main + k * 0.05).toFixed(2);
+    const set = new Set([ans]); [main + k * 0.1, main + k * 0.5 / 10 + 0.5, main + (k + 1) * 0.05, main + (k - 1) * 0.05, main + k * 0.02].forEach((v) => { if (set.size < 4) set.add(v.toFixed(2)); });
+    const list = shuffle([...set]);
+    body.innerHTML = `<div class="pzbar"><span class="chip">📏 버니어 캘리퍼스 읽기 (${round}/2, 오답 +4초)</span></div><div id="pzq">최소 눈금 1/20 mm(0.05mm) 버니어 캘리퍼스입니다.<br>아들자 0점은 본척의 <b>${main} mm</b> 눈금을 막 지났고, 아들자 <b>${k}번째</b> 눈금선이 본척 눈금선과 일치합니다. 측정값은?</div><div class="brow" style="gap:6px;justify-content:center">${list.map((t) => `<button class="bbtn" data-v="${t}">${t} mm</button>`).join("")}</div>`;
+    body.querySelectorAll("button[data-v]").forEach((b) => (b.onclick = () => {
+      if (b.dataset.v === ans) { SFX.ok(); round++; next(); } else { SFX.ng(); addPenalty(4, "눈금 읽기 오류"); b.disabled = true; b.classList.add("ng"); }
+    }));
+  };
+  next(); pzKey = null;
+}
 function runSimon(onWin) {
   const len = Math.min(8, 3 + Math.floor(G.n / 3)), seq = Array.from({ length: len }, () => Math.floor(Math.random() * 4)), cols = ["#e5484d", "#30a46c", "#3e63dd", "#f5d90a"], body = $("pz-body"); let pos = 0, showing = true, alive = true; if (PZ) PZ.seq = seq;
   body.innerHTML = `<div class="pzbar"><span class="chip">🚨 깜빡이는 순서를 기억해서 똑같이 누르세요 (실수 +6초)</span><span class="chip" id="sm-st">램프 순서를 잘 보세요…</span></div><div class="pads">${cols.map((c, i) => `<button class="pad" style="background:${c}" data-i="${i}">${["🔴", "🟢", "🔵", "🟡"][i]}</button>`).join("")}</div><div class="brow" style="justify-content:center"><button class="bbtn" id="sm-re">▶ 다시 보기</button></div>`;
