@@ -127,6 +127,7 @@ p.help { font-size: 12.5px; color: var(--sub); text-align: center; margin: 10px 
   <div class="hrow">
     <button class="hbtn" id="h-lobby">🏢 로비</button>
     <button class="hbtn" id="h-map">🗺 지도</button>
+    <button class="hbtn" id="h-list">📋 장치</button>
     <button class="hbtn" id="h-note">📝 오답노트 (0)</button>
     <button class="hbtn" id="h-hof">🏆 랭킹</button>
     <span class="chip" id="h-name">👤 -</span>
@@ -151,7 +152,7 @@ p.help { font-size: 12.5px; color: var(--sub); text-align: center; margin: 10px 
   <div class="joy" id="joy"><i id="joy-knob"></i></div>
   <button class="abtn" id="abtn">A</button>
 </div>
-<p class="help">이동: 조이스틱 / 방향키 / WASD &nbsp;·&nbsp; 상호작용(문제 풀기·말 걸기): 스페이스 / 엔터 / Z / A버튼 &nbsp;·&nbsp; 지도: M<br>
+<p class="help">이동: 조이스틱 / 방향키 / WASD &nbsp;·&nbsp; 상호작용(문제 풀기·말 걸기): 스페이스 / 엔터 / Z / A버튼 &nbsp;·&nbsp; 지도: M &nbsp;·&nbsp; 길이 답답하면 <b>📋 장치</b> 버튼으로 자동 이동 / 바로 풀기<br>
 💡 틀리면 시간이 늘어요! 빠르고 정확하게 탈출하세요. &nbsp;·&nbsp; 만든이 <b>성현쌤</b> &nbsp;·&nbsp; 그래픽: 제공된 gfx 에셋</p>
 
 <div id="title">
@@ -179,6 +180,21 @@ p.help { font-size: 12.5px; color: var(--sub); text-align: center; margin: 10px 
   <div class="mhead"><h3>🏢 정비 타워 로비</h3><button class="hbtn" id="lobby-close">닫기</button></div>
   <div class="sub" id="lobby-sub"></div>
   <div id="lobby-body"></div>
+</div></div>
+
+<div class="modal" id="exam"><div class="mcard">
+  <div class="mhead"><h3 id="exam-title">📝 모의고사</h3><button class="hbtn" id="exam-leave">로비로</button></div>
+  <div id="exam-body"></div>
+</div></div>
+
+<div class="modal" id="mini"><div class="mcard">
+  <div class="mhead"><h3>🎮 미니게임 연습</h3><button class="hbtn" id="mini-close">로비로</button></div>
+  <div id="mini-body"></div>
+</div></div>
+
+<div class="modal" id="stl"><div class="mcard">
+  <div class="mhead"><h3>📋 장치 목록</h3><button class="hbtn" id="stl-close">닫기</button></div>
+  <div id="stl-body"></div>
 </div></div>
 
 <div class="modal" id="pz"><div class="mcard">
@@ -838,7 +854,7 @@ document.addEventListener("visibilitychange", () => { if (!actx) return; if (doc
 function toast(msg, ms) { const el = document.createElement("div"); el.className = "toast"; el.innerHTML = msg; $("toast").appendChild(el); setTimeout(() => el.remove(), ms || 2600); }
 const openModal = (id) => { $(id).classList.add("open"); };
 const closeModal = (id) => { $(id).classList.remove("open"); };
-const MODAL_IDS = ["lobby", "pz", "result", "hof", "note", "acct", "conflict", "adm", "help"];
+const MODAL_IDS = ["lobby", "exam", "mini", "stl", "pz", "result", "hof", "note", "acct", "conflict", "adm", "help"];
 const anyModalOpen = () => MODAL_IDS.some((id) => $(id).classList.contains("open"));
 
 "use strict";
@@ -1020,7 +1036,7 @@ function startFloor(n, opts) {
   n = clamp(n, 1, MAX_FLOOR);
   closeAllModals();
   G.n = n; G.f = genFloor(n); G.penalty = 0; G.bonus = 0; G.clock = false; G.finalT = 0; G.digits = new Array(G.f.P.digits).fill(null); G.keys = new Set(); G.used = new Set();
-  G.fs = { a: 0, c: 0, solved: 0, guard: 0 }; G.dlg = null; $("dlg").style.display = "none"; G.mini = false; $("mini").style.display = "none"; G.on = true; G.freeze = false;
+  G.fs = { a: 0, c: 0, solved: 0, guard: 0 }; G.auto = null; G.dlg = null; $("dlg").style.display = "none"; G.mini = false; $("mini").style.display = "none"; G.on = true; G.freeze = false;
   const f = G.f; PL.x = f.spawn.x; PL.y = f.spawn.y; PL.px = PL.x * TS; PL.py = PL.y * TS; PL.dir = 2; PL.moving = false; PL.imm = 0; PL.fx = PL.x; PL.fy = PL.y;
   f.rooms[f.startRoom].visited = true; markVisit();
   f.tintF = f.theme.tf || null; f.tintW = f.theme.tw || null;
@@ -1082,6 +1098,11 @@ function update(dt) {
   const f = G.f; tAnim += dt;
   if (PL.imm > 0) PL.imm -= dt;
   if (worldBusy()) { if (PL.moving) stepPlayer(dt); updatePrompt(); return; }
+  if (G.auto && !PL.moving) {
+    if (inputDir() >= 0) G.auto = null;
+    else if (G.auto.path.length) { const c = G.auto.path.shift(), d0 = DIRS.findIndex((a) => a[0] === c[0] - PL.x && a[1] === c[1] - PL.y); if (d0 >= 0) PL.dir = d0; if (f.solid[c[1] * f.W + c[0]] === 3) tryOpenDoor(c[0], c[1]); if (walkable(c[0], c[1])) { PL.fx = PL.x; PL.fy = PL.y; PL.tx = c[0]; PL.ty = c[1]; PL.moving = true; PL.mt = 0; } else G.auto = null; }
+    else { PL.dir = G.auto.face; G.auto = null; }
+  }
   if (!PL.moving) {
     const d = inputDir();
     if (d >= 0) {
@@ -1321,7 +1342,7 @@ const stars = (lv) => "★".repeat(lv) + "☆".repeat(3 - lv);
 function pzOpen(title, chips, opt) {
   PZ = Object.assign({ title }, opt || {}); $("pz-title").textContent = title; $("pz-bar").innerHTML = (chips || []).map((c) => `<span class="chip">${c}</span>`).join(""); openModal("pz"); pzKey = null; $("pz-close").style.display = PZ.guard ? "none" : "";
 }
-function pzLeave() { closeModal("pz"); PZ = null; pzKey = null; }
+function pzLeave() { const pr = PZ && PZ.practice; closeModal("pz"); PZ = null; pzKey = null; if (pr) leavePractice(); }
 $("pz-close").onclick = () => { if (PZ && !PZ.guard) pzLeave(); };
 window.addEventListener("keydown", (e) => { if (!PZ || !$("pz").classList.contains("open") || !pzKey) return; if (/INPUT/.test((e.target || {}).tagName || "")) return; pzKey(e); });
 const rewardText = (rw) => rw.kind === "key" ? "🔑 " + LOCK_COLORS[rw.val].nm + " 열쇠" : rw.kind === "digit" ? "🔢 코드 " + (rw.val + 1) + "번째 숫자" : "🎁 시간 −" + rw.val + "초";
@@ -1341,6 +1362,7 @@ function openStation(st) {
   else if (st.type === "lube") runPick(LUBE, 3, "🛢️ 알맞은 윤활 방법을 고르세요", win);
   else if (st.type === "diag") runPick(DIAG, 3, "🩺 증상의 원인을 고르세요", win);
   else if (st.type === "gauge") runGauge(win);
+  else if (MINI_MAP[st.type]) MINI_MAP[st.type].run(win);
 }
 function stationDone(st) {
   st.solved = true; G.fs.solved++; const rw = st.reward; let html = "";
@@ -1520,7 +1542,7 @@ function runSimon(onWin) {
   body.innerHTML = `<div class="pzbar"><span class="chip">🚨 깜빡이는 순서를 기억해서 똑같이 누르세요 (실수 +6초)</span><span class="chip" id="sm-st">램프 순서를 잘 보세요…</span></div><div class="pads">${cols.map((c, i) => `<button class="pad" style="background:${c}" data-i="${i}">${["🔴", "🟢", "🔵", "🟡"][i]}</button>`).join("")}</div><div class="brow" style="justify-content:center"><button class="bbtn" id="sm-re">▶ 다시 보기</button></div>`;
   const pads = [...body.querySelectorAll(".pad")];
   const flash = (i) => { pads[i].classList.add("lit"); SFX.pad(i); setTimeout(() => pads[i].classList.remove("lit"), 380); };
-  function play() { showing = true; pos = 0; $("sm-st").textContent = "램프 순서를 잘 보세요…"; seq.forEach((v, k) => setTimeout(() => { if (alive && PZ) flash(v); }, 700 + k * 650)); setTimeout(() => { if (!alive || !PZ) return; showing = false; $("sm-st").textContent = "이제 따라 누르세요! (0 / " + len + ")"; }, 700 + len * 650); }
+  function play() { showing = true; pos = 0; $("sm-st").textContent = "램프 순서를 잘 보세요…"; seq.forEach((v, k) => setTimeout(() => { if (alive && PZ) flash(v); }, 700 + k * 650)); setTimeout(() => { if (!alive || !PZ || !$("sm-st")) return; showing = false; $("sm-st").textContent = "이제 따라 누르세요! (0 / " + len + ")"; }, 700 + len * 650); }
   pads.forEach((b, i) => (b.onclick = () => { if (showing) return; flash(i); if (seq[pos] === i) { pos++; $("sm-st").textContent = "이제 따라 누르세요! (" + pos + " / " + len + ")"; if (pos >= len) { alive = false; setTimeout(onWin, 500); } } else { SFX.ng(); addPenalty(6, "순서 틀림"); pos = 0; showing = true; setTimeout(play, 700); } }));
   $("sm-re").onclick = () => { if (!showing) play(); };
   const prevLeave = pzLeave; play(); pzKey = null; const chk = setInterval(() => { if (!PZ || !$("pz").classList.contains("open")) { alive = false; clearInterval(chk); } }, 300);
@@ -1551,6 +1573,417 @@ function openExit() {
   render();
 }
 
+// =====================================================================
+//  추가 미니게임 11종  (7초 타이밍 · 압력 게이지 · 토크 렌치 · 부품 분류 · 배관 · 고장 탐정
+//                      · 안전 점검 · 분해 조립 · 유압 회로 · 스피드 퀴즈 · 기억력 카드)
+// =====================================================================
+const MG = {
+  alive(tok, el) { return PZ === tok && (!el || document.body.contains(el)); },
+  bar(chips) { return `<div class="pzbar">${chips.map((c) => `<span class="chip">${c}</span>`).join("")}</div>`; },
+  raf(tok, el, fn) {
+    let id = 0, last = performance.now(), stop = false;
+    const loop = (t) => { if (stop || !MG.alive(tok, el)) return; const dt = Math.min(0.05, (t - last) / 1000); last = t; if (fn(dt) === false) return; id = requestAnimationFrame(loop); };
+    id = requestAnimationFrame(loop); return () => { stop = true; cancelAnimationFrame(id); };
+  },
+  space(fn) { pzKey = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); fn(); } }; },
+  win(onWin, html, ms) { const b = $("pz-body"); if (html) b.insertAdjacentHTML("beforeend", html); pzKey = null; SFX.ok(); setTimeout(onWin, ms || 700); },
+  shake(el) { if (!el) return; el.animate([{ transform: "translateX(0)" }, { transform: "translateX(-6px)" }, { transform: "translateX(6px)" }, { transform: "translateX(0)" }], { duration: 220 }); },
+};
+
+// ---------- 1. 7초 타이밍 맞추기 ----------
+function mgTiming7(onWin) {
+  const body = $("pz-body"), tok = PZ, n = G.n, tol = n <= 5 ? 0.35 : n <= 12 ? 0.25 : n <= 20 ? 0.18 : 0.12, hideAt = n <= 3 ? 6 : n <= 8 ? 3.5 : 2;
+  body.innerHTML = MG.bar(["⏱️ 7초 타이밍", "오차 ±" + tol.toFixed(2) + "초 안이면 성공", "실패 +4초"]) + `<div id="pzq">START를 누르면 시간이 올라가요. 중간에 숫자가 <b>사라집니다!</b><br>속으로 세다가 정확히 <b style="color:#ffd166">7.00초</b>에 STOP!</div>
+    <div id="t7" style="font-size:58px;font-weight:900;text-align:center;margin:10px 0;font-variant-numeric:tabular-nums">0.00</div>
+    <div style="height:10px;background:#0b0914;border-radius:6px;overflow:hidden"><div id="t7bar" style="height:100%;width:0;background:linear-gradient(90deg,#3b57c9,#ffd166)"></div></div>
+    <div class="brow" style="justify-content:center"><button class="bbtn gold" id="t7b" style="font-size:22px;padding:14px 44px">▶ START</button></div><div id="t7fb"></div>`;
+  const btn = $("t7b"), disp = $("t7"), bar = $("t7bar"), fb = $("t7fb"); let running = false, t0 = 0, stopLoop = null;
+  const press = () => {
+    if (!running) {
+      running = true; fb.innerHTML = ""; t0 = performance.now(); btn.textContent = "■ STOP"; btn.className = "bbtn"; btn.style.background = "#d9453d";
+      stopLoop = MG.raf(tok, disp, () => { const t = (performance.now() - t0) / 1000; disp.textContent = t < hideAt ? t.toFixed(2) : "?.??"; bar.style.width = Math.min(100, (t / 10) * 100) + "%"; if (t > 11) { press(); return false; } });
+    } else {
+      running = false; if (stopLoop) stopLoop(); const t = (performance.now() - t0) / 1000, diff = Math.abs(t - 7); disp.textContent = t.toFixed(2); bar.style.width = Math.min(100, (t / 10) * 100) + "%";
+      btn.textContent = "▶ 다시"; btn.style.background = "";  btn.className = "bbtn gold";
+      if (diff <= tol) { btn.disabled = true; MG.win(onWin, `<div class="fb ok"><b>🎯 성공!</b> 기록 ${t.toFixed(2)}초 (오차 ${diff.toFixed(2)}초)</div>`); }
+      else { SFX.ng(); addPenalty(4, "타이밍 실패"); fb.innerHTML = `<div class="fb ng"><b>아쉬워요!</b> 기록 ${t.toFixed(2)}초 — ${t < 7 ? "너무 빨랐어요" : "너무 늦었어요"} (오차 ${diff.toFixed(2)}초)</div>`; }
+    }
+  };
+  btn.onclick = press; MG.space(press);
+}
+
+// ---------- 2. 압력 게이지 맞추기 ----------
+function mgPressure(onWin) {
+  const body = $("pz-body"), tok = PZ, n = G.n, need = 3, speed = 0.8 + Math.min(1.5, n * 0.05), zw = Math.max(0.07, 0.2 - n * 0.005);
+  let hits = 0, v = 0, dir = 1, zc = 0.5, busy = false;
+  const P = (vv, r) => { const a = Math.PI * (1 - vv); return [120 + r * Math.cos(a), 130 - r * Math.sin(a)]; };
+  const arc = (a, b, r) => { const p = P(a, r), q = P(b, r); return `M${p[0].toFixed(1)} ${p[1].toFixed(1)}A${r} ${r} 0 0 1 ${q[0].toFixed(1)} ${q[1].toFixed(1)}`; };
+  body.innerHTML = MG.bar(["🧭 압력 게이지", "목표 구간에서 멈추기 (3번)", "실패 +3초"]) + `<div id="pzq" style="text-align:center"></div>
+    <svg id="pg" viewBox="0 0 240 150" style="width:100%;max-width:380px;display:block;margin:0 auto"><path d="${arc(0, 1, 91)}" stroke="#2a2548" stroke-width="20" fill="none"/><path id="pgz" stroke="#43c183" stroke-width="20" fill="none"/>
+    ${[0, 25, 50, 75, 100].map((b) => { const p = P(b / 100, 112), t = P(b / 100, 80), t2 = P(b / 100, 101); return `<text x="${p[0].toFixed(1)}" y="${(p[1] + 4).toFixed(1)}" fill="#a9a3c9" font-size="11" text-anchor="middle">${b}</text><path d="M${t[0].toFixed(1)} ${t[1].toFixed(1)}L${t2[0].toFixed(1)} ${t2[1].toFixed(1)}" stroke="#a9a3c9" stroke-width="2"/>`; }).join("")}
+    <line id="pgn" x1="120" y1="130" x2="120" y2="40" stroke="#ff5a4e" stroke-width="4" stroke-linecap="round"/><circle cx="120" cy="130" r="8" fill="#ff5a4e"/><text x="120" y="148" fill="#fff" font-size="12" text-anchor="middle" id="pgt">0 bar</text></svg>
+    <div class="brow" style="justify-content:center"><button class="bbtn gold" id="pgb" style="font-size:22px;padding:14px 44px">✋ 멈춰!</button></div><div id="pgfb"></div>`;
+  const nd = $("pgn"), zone = $("pgz"), txt = $("pgt"), q = $("pzq"), fb = $("pgfb");
+  const newZone = () => { zc = 0.2 + Math.random() * 0.6; zone.setAttribute("d", arc(zc - zw / 2, zc + zw / 2, 91)); const lo = Math.round((zc - zw / 2) * 100), hi = Math.round((zc + zw / 2) * 100); q.innerHTML = `릴리프 밸브 설정압을 <b style="color:#7fe3a8">${lo} ~ ${hi} bar</b> 에 맞추세요 <small style="color:#a9a3c9">(${hits}/${need})</small>`; };
+  newZone();
+  MG.raf(tok, nd, (dt) => { v += dir * speed * dt; if (v >= 1) { v = 1; dir = -1; } if (v <= 0) { v = 0; dir = 1; } const p = P(v, 86); nd.setAttribute("x2", p[0].toFixed(1)); nd.setAttribute("y2", p[1].toFixed(1)); txt.textContent = Math.round(v * 100) + " bar"; });
+  const stopNow = () => {
+    if (busy) return; const ok = Math.abs(v - zc) <= zw / 2;
+    if (ok) { hits++; SFX.ok(); fb.innerHTML = `<div class="fb ok">✅ 정확해요! (${hits}/${need})</div>`; if (hits >= need) { busy = true; return MG.win(onWin); } newZone(); }
+    else { SFX.ng(); addPenalty(3, "압력 불일치"); fb.innerHTML = `<div class="fb ng">❌ ${Math.round(v * 100)} bar — 구간을 벗어났어요</div>`; MG.shake($("pg")); }
+  };
+  $("pgb").onclick = stopNow; MG.space(stopNow);
+}
+
+// ---------- 3. 볼트 토크 렌치 ----------
+function mgTorque(onWin) {
+  const body = $("pz-body"), tok = PZ, n = G.n, rounds = n < 8 ? 2 : 3; let r = 0, run = false, val = 0, spec, max, tolr;
+  const SPECS = [["M8", 25], ["M10", 45], ["M12", 80], ["M16", 190], ["M20", 370]];
+  function round() {
+    const sp = SPECS[Math.floor(Math.random() * SPECS.length)]; spec = sp[1]; max = Math.round(spec * 1.5); tolr = Math.max(0.035, 0.09 - n * 0.002) * spec; val = 0; run = false;
+    const lo = (spec - tolr) / max * 100, w = (tolr * 2) / max * 100;
+    body.innerHTML = MG.bar(["🔧 토크 렌치", `볼트 ${r + 1} / ${rounds}`, "파손·부족 +4초"]) + `<div id="pzq">${sp[0]} 볼트를 도면 지시값 <b style="color:#ffd166">${spec} N·m</b> 로 조이세요.<br><small style="color:#a9a3c9">START로 조이기 시작 → 규정값(초록 구간)에서 STOP. ${max} N·m를 넘으면 볼트가 부러져요!</small></div>
+      <div style="position:relative;height:34px;background:#0b0914;border-radius:8px;overflow:hidden;margin:10px 0"><div style="position:absolute;left:${lo}%;width:${w}%;top:0;bottom:0;background:#43c18366;border-left:2px solid #43c183;border-right:2px solid #43c183"></div><div id="tqf" style="position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#3b57c9,#8aa4ff)"></div></div>
+      <div id="tqv" style="font-size:40px;font-weight:900;text-align:center;font-variant-numeric:tabular-nums">0 N·m</div>
+      <div class="brow" style="justify-content:center"><button class="bbtn gold" id="tqb" style="font-size:22px;padding:14px 44px">▶ 조이기 START</button></div><div id="tqfb"></div>`;
+    const f = $("tqf"), vv = $("tqv"), b = $("tqb"), fb = $("tqfb");
+    const press = () => {
+      if (!run) { run = true; b.textContent = "■ STOP"; const rate = max / (2.6 - Math.min(1.2, n * 0.04));
+        MG.raf(tok, f, (dt) => { if (!run) return false; val += rate * dt; f.style.width = Math.min(100, (val / max) * 100) + "%"; vv.textContent = Math.round(val) + " N·m"; if (val >= max) { run = false; fail("💥 볼트가 부러졌어요! (과대 토크)"); return false; } }); }
+      else { run = false; if (Math.abs(val - spec) <= tolr) { SFX.ok(); r++; if (r >= rounds) { b.disabled = true; return MG.win(onWin, `<div class="fb ok">🔩 ${Math.round(val)} N·m — 규정 토크 체결 완료!</div>`); } fb.innerHTML = `<div class="fb ok">✅ ${Math.round(val)} N·m 체결! 다음 볼트로…</div>`; pzKey = null; b.disabled = true; setTimeout(() => { if (MG.alive(tok, b)) round(); }, 700); }
+        else fail(val < spec ? `🔧 ${Math.round(val)} N·m — 토크 부족 (풀림 위험)` : `⚠️ ${Math.round(val)} N·m — 과대 토크 (나사산 손상)`); }
+    };
+    const fail = (m) => { SFX.ng(); addPenalty(4, "토크 실패"); fb.innerHTML = `<div class="fb ng">${m}</div>`; b.textContent = "▶ 다시"; run = false; val = 0; f.style.width = "0"; };
+    b.onclick = press; MG.space(press);
+  }
+  round();
+}
+
+// ---------- 4. 부품 분류 (떨어지는 부품 → 알맞은 통) ----------
+const SORT_CATS = [
+  { nm: "체결 요소", ic: "🔩", items: ["볼트", "너트", "와셔", "코터 핀", "리벳", "스터드 볼트", "세트 스크루"] },
+  { nm: "동력 전달", ic: "⚙️", items: ["기어", "체인", "V벨트", "커플링", "스프로킷", "풀리", "클러치"] },
+  { nm: "베어링", ic: "🎯", items: ["볼 베어링", "롤러 베어링", "니들 베어링", "스러스트 베어링", "테이퍼 롤러 베어링"] },
+  { nm: "밀봉(실)", ic: "⭕", items: ["O링", "오일 실", "패킹", "개스킷", "메커니컬 실", "립 실"] },
+];
+function mgSort(onWin) {
+  const body = $("pz-body"), tok = PZ, n = G.n, L = n < 8 ? 3 : 4, cats = SORT_CATS.slice(0, L), need = 8 + Math.min(6, Math.floor(n / 4)), dur = Math.max(2.4, 5.2 - n * 0.09);
+  let ok = 0, cur = null, y = 0, over = false; const bag = [];
+  const nextItem = () => { if (!bag.length) cats.forEach((c, ci) => c.items.forEach((t) => bag.push({ t, ci }))), bag.sort(() => Math.random() - 0.5); cur = bag.pop(); y = 0; };
+  body.innerHTML = MG.bar(["🧺 부품 분류", "알맞은 통을 누르세요 (키보드 1~" + L + ")", "오답·놓침 +2초"]) + `<div id="pzq" style="margin:2px 0 6px">정답 <b id="sc">0</b> / ${need}</div>
+    <div id="sarea" style="position:relative;height:190px;background:linear-gradient(#1a1630,#2a2548);border-radius:12px;overflow:hidden"><div id="sitem" style="position:absolute;left:50%;top:0;transform:translateX(-50%);background:#ffd166;color:#3a1d0a;font-weight:800;padding:8px 14px;border-radius:10px;font-size:16px;white-space:nowrap"></div></div>
+    <div class="brow" style="justify-content:center;flex-wrap:nowrap">${cats.map((c, i) => `<button class="bbtn" data-i="${i}" style="flex:1;padding:12px 4px;font-size:13px">${c.ic}<br>${c.nm}</button>`).join("")}</div><div id="sfb" style="min-height:24px"></div>`;
+  const area = $("sarea"), it = $("sitem"), fb = $("sfb"); nextItem(); it.textContent = cur.t;
+  const pick = (i) => { if (over || !cur) return; if (i === cur.ci) { ok++; SFX.ok(); $("sc").textContent = ok; fb.innerHTML = `<span style="color:#7fe3a8">✅ ${cur.t} → ${cats[i].nm}</span>`; if (ok >= need) { over = true; return MG.win(onWin); } } else { SFX.ng(); addPenalty(2, "분류 오답"); fb.innerHTML = `<span style="color:#ff8a8a">❌ ${cur.t}은(는) ${cats[cur.ci].nm}</span>`; } nextItem(); it.textContent = cur.t; };
+  body.querySelectorAll("button[data-i]").forEach((b) => (b.onclick = () => pick(+b.dataset.i)));
+  pzKey = (e) => { const k = parseInt(e.key, 10); if (k >= 1 && k <= L) pick(k - 1); };
+  MG.raf(tok, area, (dt) => { if (over) return false; y += dt / dur; it.style.top = Math.min(1, y) * (area.clientHeight - 40) + "px"; if (y >= 1) { SFX.ng(); addPenalty(2, "놓침"); fb.innerHTML = `<span style="color:#ff8a8a">⏰ 놓쳤어요: ${cur.t} → ${cats[cur.ci].nm}</span>`; nextItem(); it.textContent = cur.t; } });
+}
+
+// ---------- 5. 배관 퍼즐 (타일을 돌려 물길 잇기) ----------
+function mgPipes(onWin) {
+  const body = $("pz-body"), n = G.n, C = n < 8 ? 4 : n < 18 ? 5 : 6, R = C <= 5 ? 4 : 5, DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0]; // N E S W = bit 1,2,4,8
+  let sr = Math.floor(Math.random() * R), er = Math.floor(Math.random() * R), path = null;
+  for (let tr = 0; tr < 40 && !(path && path.length >= C + 2); tr++) {
+    sr = Math.floor(Math.random() * R); er = Math.floor(Math.random() * R); const vis = new Set(), p = [];
+    const dfs = (x, y) => { p.push([x, y]); vis.add(x + "," + y); if (x === C - 1 && y === er) return true; const ds = [0, 1, 2, 3].sort(() => Math.random() - 0.5); for (const d of ds) { const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= C || ny >= R || vis.has(nx + "," + ny)) continue; if (dfs(nx, ny)) return true; } p.pop(); return false; };
+    if (dfs(0, sr)) path = p;
+  }
+  const mask = Array.from({ length: R }, () => Array(C).fill(0)), onPath = new Set(), ELB = [3, 6, 12, 9], STR = [5, 10];
+  path.forEach(([x, y], i) => { let m = 0; const pv = path[i - 1], nx = path[i + 1]; m |= pv ? bitTo(x, y, pv) : 8; m |= nx ? bitTo(x, y, nx) : 2; mask[y][x] = m; onPath.add(x + "," + y); });
+  function bitTo(x, y, o) { return o[0] > x ? 2 : o[0] < x ? 8 : o[1] > y ? 4 : 1; }
+  const rot = (m) => ((m << 1) | (m >> 3)) & 15;
+  for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) if (!onPath.has(x + "," + y)) mask[y][x] = Math.random() < 0.5 ? STR[Math.floor(Math.random() * 2)] : ELB[Math.floor(Math.random() * 4)];
+  const flow = () => { const set = new Set(); let x = 0, y = sr, inb = 8, win = false; for (let g = 0; g < C * R + 2; g++) { const m = mask[y][x]; if (!(m & inb)) break; set.add(x + "," + y); const out = m & ~inb; if (!out) break; if (x === C - 1 && y === er && (out & 2)) { win = true; break; } const d = out === 1 ? 0 : out === 2 ? 1 : out === 4 ? 2 : 3, nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= C || ny >= R) break; x = nx; y = ny; inb = [4, 8, 1, 2][d]; } return { set, win }; };
+  do { path.forEach(([x, y]) => { for (let k = Math.floor(Math.random() * 4); k > 0; k--) mask[y][x] = rot(mask[y][x]); }); } while (flow().win);
+  const tile = (m, wet) => { const col = wet ? "#4aa8ff" : "#8a86a8", ln = [[1, "27 27 27 0"], [2, "27 27 54 27"], [4, "27 27 27 54"], [8, "27 27 0 27"]].filter((a) => m & a[0]).map((a) => { const [x1, y1, x2, y2] = a[1].split(" "); return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="13"/>`; }).join(""); return `<svg viewBox="0 0 54 54" width="100%" height="100%">${ln}<circle cx="27" cy="27" r="8" fill="${col}"/></svg>`; };
+  body.innerHTML = MG.bar(["🚰 배관 연결", "타일을 눌러 돌려서 왼쪽 → 오른쪽으로 물길을 이으세요", "오답 벌칙 없음"]) + `<div id="pzq" style="text-align:center;margin:4px 0">💧 입구 ▶ 출구 ▶ 로 물이 흐르면 성공!</div><div id="pp" style="display:grid;grid-template-columns:repeat(${C},1fr);gap:3px;max-width:${C * 64}px;margin:8px auto;position:relative"></div>`;
+  const grid = $("pp"); let done = false;
+  const draw = () => { const f = flow(); grid.innerHTML = ""; for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) { const b = document.createElement("button"); b.style.cssText = "aspect-ratio:1;border:2px solid #4a4272;border-radius:8px;background:#1b1733;padding:2px;cursor:pointer"; if (x === 0 && y === sr) b.style.borderLeft = "5px solid #4aa8ff"; if (x === C - 1 && y === er) b.style.borderRight = "5px solid #43c183"; b.innerHTML = tile(mask[y][x], f.set.has(x + "," + y)); b.onclick = () => { if (done) return; mask[y][x] = rot(mask[y][x]); SFX.click(); const ff = flow(); draw(); if (ff.win) { done = true; MG.win(onWin, `<div class="fb ok">💧 물이 흐릅니다! 배관 완성!</div>`); } }; grid.appendChild(b); } };
+  draw(); pzKey = null;
+}
+
+// ---------- 6. 고장 탐정 ----------
+const DETECT = [
+  { m: "🔧 유압 펌프에서 자갈이 굴러가는 듯한 소음이 난다", clues: [["🔊 소음", "자갈 갈리는 듯한 캐비테이션 소리"], ["🛢️ 작동유", "기포가 많고 우유처럼 탁하다"], ["🧲 흡입 라인", "흡입 스트레이너가 슬러지로 막혀 있다"], ["🌡️ 온도", "정상 범위(45℃)"], ["📈 압력", "릴리프 밸브 설정압은 정상"]], ans: "흡입 스트레이너 막힘 (캐비테이션)", bad: ["릴리프 밸브 고착", "실린더 로드 휨", "토출 배관 파손"], why: "흡입 측이 막히면 펌프 입구가 진공에 가까워져 기포가 생기고(캐비테이션) 소음·진동이 커져요." },
+  { m: "🔧 공압 실린더의 힘이 약하고 속도도 느리다", clues: [["🔊 소리", "밸브가 전환된 뒤에도 배기구에서 공기가 계속 샌다"], ["📈 공급 압력", "게이지 0.5MPa로 정상"], ["🔩 배관", "연결부 누설은 없다"], ["🛢️ FRL", "윤활기 오일량 정상"], ["🧪 비누물 시험", "로드 패킹 부위는 이상 없음"]], ans: "피스톤 패킹 마모 (내부 누설)", bad: ["공급 압력 부족", "솔레노이드 코일 단선", "소음기 막힘"], why: "피스톤 패킹이 닳으면 양쪽 챔버 사이로 공기가 새어 출력과 속도가 떨어져요." },
+  { m: "🔧 베어링 하우징이 너무 뜨겁다", clues: [["🌡️ 온도", "90℃ 이상, 손을 댈 수 없다"], ["🔊 소리", "쇳소리 섞인 윙 소리"], ["🛢️ 윤활", "그리스가 말라 굳어 있다"], ["📳 진동", "약간 증가"], ["📐 정렬", "커플링 정렬은 정상"]], ans: "윤활 부족 (그리스 고갈)", bad: ["축 정렬 불량", "벨트 장력 과다", "공급 전압 저하"], why: "그리스가 마르면 금속 접촉으로 마찰열이 커지고 소음이 생겨요." },
+  { m: "🔧 컨베이어 V벨트에서 찍찍 소리가 나고 속도가 떨어진다", clues: [["🔊 소리", "기동 순간 '찍' 하는 비명 소리"], ["👀 벨트 상태", "표면이 번들번들하고 옆면이 닳았다"], ["✋ 장력", "손으로 눌렀더니 처짐이 매우 크다"], ["⚡ 모터", "회전·전류 모두 정상"], ["📦 부하", "화물 중량은 정상"]], ans: "벨트 장력 부족 (미끄럼)", bad: ["모터 베어링 파손", "감속기 오일 부족", "풀리 키 파손"], why: "장력이 부족하면 벨트가 풀리 위에서 미끄러져 소음과 속도 저하가 생겨요." },
+  { m: "🔧 펌프와 모터 연결부 주변의 진동이 심하다", clues: [["📳 진동", "축방향·반경방향 모두 크고 회전수의 2배 성분이 두드러진다"], ["🔎 커플링", "고무 부시가 한쪽만 마모되었다"], ["🔩 기초 볼트", "모두 단단히 조여 있다"], ["🔊 소리", "베어링 소음은 없다"], ["🌡️ 온도", "정상"]], ans: "축 정렬(센터링) 불량", bad: ["기초 볼트 풀림", "베어링 손상", "임펠러 캐비테이션"], why: "커플링 양축의 중심이 어긋나면 2배 회전 성분의 진동과 편마모가 생겨요." },
+  { m: "🔧 유압유 온도가 계속 올라간다 (85℃)", clues: [["🌡️ 온도", "탱크 유온 85℃, 펌프 케이스는 정상"], ["🌬️ 오일 쿨러", "핀에 먼지가 가득, 냉각 바람이 거의 안 나온다"], ["💧 유량", "펌프 토출량은 정상"], ["📏 유면", "오일 레벨 정상"], ["🧴 필터", "리턴 필터 정상"]], ans: "오일 쿨러 막힘 (냉각 불량)", bad: ["작동유 부족", "펌프 내부 마모", "방향 제어 밸브 코일 단선"], why: "열을 식혀야 할 쿨러가 막히면 발생한 열이 빠져나가지 못해 유온이 계속 올라가요." },
+  { m: "🔧 감속기에서 회전수에 맞춰 '딱딱' 소리가 난다", clues: [["🔊 소음", "회전수에 비례해 딱딱 소리가 난다"], ["🛢️ 윤활유", "유면이 낮고 금속 가루가 섞여 있다"], ["🔎 기어", "이 표면에 점식(피팅)이 보인다"], ["🌡️ 온도", "약간 높다"], ["🔩 케이스 볼트", "모두 정상"]], ans: "윤활유 부족에 의한 기어 이 손상", bad: ["베어링 윤활 과다", "벨트 장력 부족", "커플링 키 헐거움"], why: "기어유가 부족하면 이 표면이 직접 접촉해 점식·마모와 소음이 생겨요." },
+  { m: "🔧 공압 배관 끝 공구에서 물이 나온다", clues: [["💧 드레인", "배관 말단 드레인에서 물이 많이 나온다"], ["❄️ 에어 드라이어", "표시등이 꺼져 있고 냉각이 안 된다"], ["🔎 오토 드레인", "고착되어 배수가 안 된다"], ["📈 압력", "공급 압력 정상"], ["🛢️ 윤활기", "오일량 정상"]], ans: "에어 드라이어·오토 드레인 불량 (응축수 미제거)", bad: ["윤활기 과다 급유", "공기 압력 과다", "솔레노이드 코일 소손"], why: "압축 공기 속 수분이 제거되지 않으면 배관 끝에서 응축수가 나와요." },
+];
+function mgDetective(onWin) {
+  const body = $("pz-body"), tok = PZ, sc = DETECT[Math.floor(Math.random() * DETECT.length)], opts = [sc.ans].concat(sc.bad).sort(() => Math.random() - 0.5); let used = 0, done = false;
+  body.innerHTML = MG.bar(["🕵️ 고장 탐정", "단서 확인 +1초 / 오답 +5초", "단서 <b id='dcnt'>0</b>/5"]) + `<div id="pzq">${sc.m}</div><div class="sub">점검 항목을 눌러 단서를 모은 뒤, 원인을 고르세요.</div>
+    <div id="dcl">${sc.clues.map((c, i) => `<button class="opt" data-c="${i}">${c[0]} <span class="r" style="color:#a9a3c9">— 눌러서 점검</span></button>`).join("")}</div>
+    <div class="sub" style="margin-top:10px"><b>🧠 원인은?</b></div>${opts.map((t, i) => `<button class="opt" data-o="${i}">${escHtml(t)}</button>`).join("")}<div id="dfb"></div>`;
+  body.querySelectorAll("[data-c]").forEach((b) => (b.onclick = () => { if (b.dataset.on) return; b.dataset.on = 1; used++; $("dcnt").textContent = used; addPenalty(1, "점검"); SFX.click(); b.querySelector(".r").innerHTML = `<b style="color:#ffd166">${escHtml(sc.clues[b.dataset.c][1])}</b>`; }));
+  body.querySelectorAll("[data-o]").forEach((b) => (b.onclick = () => { if (done || b.disabled) return; const t = opts[b.dataset.o]; if (t === sc.ans) { done = true; b.classList.add("ok"); MG.win(onWin, `<div class="fb ok"><b>🎉 정답!</b> ${escHtml(sc.why)} (단서 ${used}개 사용)</div>`, 1500); } else { b.disabled = true; b.classList.add("ng"); SFX.ng(); addPenalty(5, "추리 실패"); $("dfb").innerHTML = `<div class="fb ng">❌ 그 원인으로는 단서가 설명되지 않아요. 단서를 더 확인해 보세요.</div>`; } }));
+  pzKey = null;
+}
+
+// ---------- 7. 안전 점검 (현장에서 위험 요소 찾기) ----------
+const HAZ_BAD = [["💧", "바닥에 흘린 기름 — 미끄러짐·화재 위험"], ["🔌", "피복이 벗겨진 전선 — 감전 위험"], ["⚙️", "방호 덮개가 없는 회전체 — 말림 사고 위험"], ["📦", "통로를 막은 적재물 — 대피·통행 방해"], ["🚬", "작업장 내 흡연 — 화재·폭발 위험"], ["🔥", "인화물 옆 용접 불꽃 — 화재 위험"], ["🪜", "고정하지 않은 사다리 — 추락 위험"], ["🧪", "뚜껑 열린 유해 화학물질 — 중독·화재 위험"]];
+const HAZ_OK = [["⛑️", "안전모 착용 — 올바른 보호구"], ["🧯", "소화기 비치 — 올바른 안전 조치"], ["🥽", "보안경 착용 — 올바른 보호구"], ["🦺", "안전조끼 착용 — 올바른 보호구"], ["🚧", "위험 구역 방호 펜스 — 올바른 조치"], ["🧰", "공구함 정리정돈 — 올바른 상태"]];
+function mgHazardScene(onWin) {
+  const body = $("pz-body"), n = G.n, H = n < 8 ? 4 : n < 18 ? 5 : 6, items = []; const bad = [...HAZ_BAD].sort(() => Math.random() - 0.5).slice(0, H), ok = [...HAZ_OK].sort(() => Math.random() - 0.5).slice(0, 12 - H);
+  bad.forEach((x) => items.push({ e: x[0], t: x[1], h: 1 })); ok.forEach((x) => items.push({ e: x[0], t: x[1], h: 0 })); items.sort(() => Math.random() - 0.5);
+  let found = 0, done = false;
+  body.innerHTML = MG.bar(["🔍 안전 점검", `위험 요소 ${H}개 찾기`, "안전한 것을 누르면 +3초"]) + `<div id="pzq" style="margin:2px 0 6px">찾은 위험 <b id="hc">0</b> / ${H}</div>
+    <div style="background:linear-gradient(#34305a 0 64%,#554a3f 64% 100%);border-radius:12px;padding:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;border:3px solid #4a4272">${items.map((x, i) => `<button data-i="${i}" style="aspect-ratio:1.15;background:#0003;border:2px dashed #fff2;border-radius:10px;font-size:34px;cursor:pointer;transform:rotate(${(Math.random() * 6 - 3).toFixed(1)}deg)">${x.e}</button>`).join("")}</div><div id="hlog" style="margin-top:8px"></div>`;
+  body.querySelectorAll("[data-i]").forEach((b) => (b.onclick = () => {
+    if (done || b.dataset.on) return; b.dataset.on = 1; const x = items[b.dataset.i];
+    if (x.h) { found++; $("hc").textContent = found; SFX.ok(); b.style.border = "3px solid #ff5a4e"; b.style.background = "#ff5a4e33"; $("hlog").insertAdjacentHTML("beforeend", `<div class="fb ng" style="margin:4px 0">⚠️ ${x.e} ${escHtml(x.t)}</div>`); if (found >= H) { done = true; MG.win(onWin, `<div class="fb ok"><b>✅ 위험 요소를 모두 찾았어요!</b></div>`, 1300); } }
+    else { SFX.ng(); addPenalty(3, "안전한 항목"); b.style.opacity = ".4"; b.style.border = "3px solid #43c183"; $("hlog").insertAdjacentHTML("beforeend", `<div class="fb ok" style="margin:4px 0">🙂 ${x.e} ${escHtml(x.t)}</div>`); }
+  }));
+  pzKey = null;
+}
+
+// ---------- 8. 분해·조립 (제한 시간 안에 순서대로) ----------
+function mgAssemble(onWin) {
+  const body = $("pz-body"), tok = PZ, n = G.n; let set, steps, items, nextIdx, tLeft, total, over;
+  function start() {
+    set = ORDERS[Math.floor(Math.random() * ORDERS.length)]; steps = set.steps; items = steps.map((t, i) => ({ t, i })).sort(() => Math.random() - 0.5); nextIdx = 0; over = false; total = tLeft = steps.length * Math.max(3.5, 8 - n * 0.12);
+    body.innerHTML = MG.bar(["🛠️ 분해·조립", "제한 시간 안에 순서대로!", "순서 틀림 +3초 / 시간 초과 +5초"]) + `<div id="pzq">${escHtml(set.t)}</div><div style="height:10px;background:#0b0914;border-radius:6px;overflow:hidden;margin-bottom:8px"><div id="asb" style="height:100%;width:100%;background:linear-gradient(90deg,#ff5a4e,#ffd166)"></div></div>
+      <div id="atw" style="min-height:30px;font-size:22px;margin-bottom:6px"></div><div id="ab">${items.map((x, i) => `<button class="opt stepbtn" data-i="${i}"><span class="no">?</span>${escHtml(x.t)}</button>`).join("")}</div>`;
+    const bar = $("asb");
+    body.querySelectorAll("[data-i]").forEach((b) => (b.onclick = () => { if (over || b.disabled) return; const x = items[b.dataset.i]; if (x.i === nextIdx) { b.disabled = true; b.classList.add("ok"); b.querySelector(".no").textContent = nextIdx + 1; nextIdx++; SFX.ok(); $("atw").textContent += "🧱"; if (nextIdx >= steps.length) { over = true; MG.win(onWin, `<div class="fb ok">🔩 조립 완성!</div>`); } } else { SFX.ng(); addPenalty(3, "순서 오류"); b.classList.add("ng"); MG.shake(b); setTimeout(() => b.classList.remove("ng"), 400); } }));
+    MG.raf(tok, bar, (dt) => { if (over) return false; tLeft -= dt; bar.style.width = Math.max(0, (tLeft / total) * 100) + "%"; if (tLeft <= 0) { over = true; SFX.ng(); addPenalty(5, "시간 초과"); body.insertAdjacentHTML("beforeend", `<div class="fb ng">⏰ 시간 초과! 새 작업으로 다시 도전해요.</div><div class="brow" style="justify-content:center"><button class="bbtn gold" id="are">다시 도전</button></div>`); $("are").onclick = start; return false; } });
+  }
+  start(); pzKey = null;
+}
+
+// ---------- 9. 유압 회로 완성 ----------
+const HSYM = {
+  tank: ["유압 탱크", `<path d="M12 18V50H52V18" fill="none" stroke="#fff" stroke-width="3"/><path d="M12 34H52" stroke="#6bb8ff" stroke-width="2" stroke-dasharray="4 3"/>`, "작동유를 저장하고 열을 식힌다"],
+  filter: ["필터", `<path d="M32 12L52 32L32 52L12 32Z" fill="none" stroke="#fff" stroke-width="3"/><path d="M20 20L44 44" stroke="#fff" stroke-width="2.5" stroke-dasharray="4 3"/>`, "작동유 속 이물질을 걸러낸다"],
+  pump: ["유압 펌프", `<circle cx="32" cy="34" r="17" fill="none" stroke="#fff" stroke-width="3"/><path d="M32 22L42 42H22Z" fill="#fff"/><path d="M32 4V17" stroke="#fff" stroke-width="3"/>`, "기계적 에너지를 유압 에너지로 바꾼다"],
+  relief: ["릴리프 밸브", `<rect x="14" y="14" width="36" height="38" fill="none" stroke="#fff" stroke-width="3"/><path d="M26 48V24M20 31L26 23L32 31" fill="none" stroke="#fff" stroke-width="3"/><path d="M50 22H56L58 18L62 28" fill="none" stroke="#fff" stroke-width="2"/>`, "회로의 최고 압력을 제한한다"],
+  accu: ["어큐뮬레이터", `<circle cx="32" cy="30" r="17" fill="none" stroke="#fff" stroke-width="3"/><path d="M15 30H49" stroke="#fff" stroke-width="2.5"/><path d="M15 30A17 17 0 0 1 49 30Z" fill="#fff6"/><path d="M32 47V60" stroke="#fff" stroke-width="3"/>`, "압력 에너지를 저장하고 맥동을 줄인다"],
+  dcv: ["방향 제어 밸브", `<rect x="4" y="18" width="28" height="28" fill="none" stroke="#fff" stroke-width="3"/><rect x="32" y="18" width="28" height="28" fill="none" stroke="#fff" stroke-width="3"/><path d="M18 42V24M14 29L18 23L22 29M46 24V42M42 37L46 43L50 37" fill="none" stroke="#fff" stroke-width="2.5"/>`, "작동유가 흐르는 방향을 바꾼다"],
+  cyl: ["유압 실린더", `<rect x="6" y="22" width="38" height="22" fill="none" stroke="#fff" stroke-width="3"/><path d="M24 22V44" stroke="#fff" stroke-width="3"/><path d="M44 33H62" stroke="#fff" stroke-width="4"/>`, "유압 에너지를 직선 운동으로 바꾼다"],
+  motor: ["유압 모터", `<circle cx="32" cy="34" r="17" fill="none" stroke="#fff" stroke-width="3"/><path d="M22 26H42L32 46Z" fill="#fff"/><path d="M32 4V17" stroke="#fff" stroke-width="3"/>`, "유압 에너지를 회전 운동으로 바꾼다"],
+};
+const HSEQ = [["tank", "pump", "relief", "dcv", "cyl"], ["tank", "filter", "pump", "dcv", "motor"], ["tank", "pump", "accu", "dcv", "cyl"], ["tank", "filter", "pump", "relief", "dcv", "cyl"]];
+function mgCircuit(onWin) {
+  const body = $("pz-body"), seq = HSEQ[Math.floor(Math.random() * (G.n < 6 ? 3 : HSEQ.length))]; let pos = 0, done = false;
+  const sv = (k, s) => `<svg viewBox="0 0 64 64" width="${s}" height="${s}">${HSYM[k][1]}</svg>`;
+  const pal = Object.keys(HSYM).sort(() => Math.random() - 0.5);
+  function render() {
+    body.innerHTML = MG.bar(["🛢️ 유압 회로 완성", "설명에 맞는 기호를 고르세요", "오답 +3초"]) + `<div id="pzq">작동유가 흐르는 순서대로 회로를 완성하세요. <small style="color:#a9a3c9">(간략 기호)</small></div>
+      <div style="display:flex;align-items:center;gap:0;overflow-x:auto;padding:6px 0">${seq.map((k, i) => `<div style="flex:none;text-align:center;width:74px"><div style="height:68px;border:2px ${i === pos ? "solid #ffd166" : "dashed #4a4272"};border-radius:10px;background:${i < pos ? "#173a2b" : "#1b1733"};display:flex;align-items:center;justify-content:center">${i < pos ? sv(k, 56) : `<b style="color:#ffd166;font-size:22px">${i === pos ? "?" : ""}</b>`}</div><small style="color:#a9a3c9;font-size:10.5px">${i < pos ? HSYM[k][0] : "①②③④⑤⑥"[i]}</small></div>${i < seq.length - 1 ? `<div style="flex:none;width:14px;height:3px;background:${i < pos ? "#4aa8ff" : "#4a4272"}"></div>` : ""}`).join("")}</div>
+      ${done ? "" : `<div class="fb" style="border-left:5px solid #ffd166;font-size:15px"><b>${"①②③④⑤⑥"[pos]}번 자리</b> : ${HSYM[seq[pos]][2]}</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px">${pal.map((k) => `<button class="mt" data-k="${k}" style="padding:6px 2px;display:flex;flex-direction:column;align-items:center">${sv(k, 48)}<span style="font-size:11px">${HSYM[k][0]}</span></button>`).join("")}</div>`}<div id="cfb"></div>`;
+    body.querySelectorAll("[data-k]").forEach((b) => (b.onclick = () => { if (b.dataset.k === seq[pos]) { SFX.ok(); pos++; if (pos >= seq.length) { done = true; render(); return MG.win(onWin, `<div class="fb ok">✅ 회로 완성! 작동유가 탱크에서 출발해 일을 하고 돌아옵니다.</div>`, 1300); } render(); } else { SFX.ng(); addPenalty(3, "회로 오류"); b.classList.add("bad"); MG.shake(b); } }));
+  }
+  render(); pzKey = null;
+}
+
+// ---------- 10. 스피드 퀴즈 ----------
+function mgSpeedQuiz(onWin) {
+  const body = $("pz-body"), tok = PZ, n = G.n, Tm = n < 10 ? 10 : n < 20 ? 8 : 6, total = 5; let idx = 0, good = 0;
+  function show() {
+    const cur = pickQuestion(); G.used.add(cur.id); const opts = shuffle(cur.o.map((t, i) => ({ t, ok: i === 0 }))); let done = false, tl = Tm;
+    body.innerHTML = MG.bar(["⚡ 스피드 퀴즈", `${idx + 1} / ${total}`, `${total - 1}개 이상 정답이면 성공`, `제한 ${Tm}초`]) + `<div style="height:10px;background:#0b0914;border-radius:6px;overflow:hidden;margin-bottom:8px"><div id="sqb" style="height:100%;width:100%;background:linear-gradient(90deg,#ff5a4e,#43c183)"></div></div><div id="pzq">${escHtml(cur.q)}</div>${cur.img ? `<img src="${cur.img}" style="max-width:100%;max-height:150px;background:#fff;display:block;margin:0 auto 8px">` : ""}${opts.map((o, i) => `<button class="opt" data-i="${i}">${escHtml(o.t)}</button>`).join("")}<div id="sqf"></div>`;
+    const bar = $("sqb"); const finish = (ok, sel) => { if (done) return; done = true; recordAnswer(cur, ok); if (ok) { good++; SFX.ok(); } else { SFX.ng(); addPenalty(3, "오답"); }
+      body.querySelectorAll("[data-i]").forEach((b) => { b.disabled = true; const o = opts[b.dataset.i]; if (o.ok) b.classList.add("ok"); else if (b === sel) b.classList.add("ng"); });
+      $("sqf").innerHTML = `<div class="fb ${ok ? "ok" : "ng"}"><b>${ok ? "⭕ 정답!" : sel ? "❌ 오답" : "⏰ 시간 초과"}</b> ${escHtml(cur.e || "")}</div><div class="brow"><button class="bbtn main" id="sqn">${idx + 1 >= total ? "결과 ▶" : "다음 ▶"}</button></div>`; pzKey = (e) => { if (e.key === "Enter" || e.key === " ") $("sqn").click(); };
+      $("sqn").onclick = () => { idx++; if (idx >= total) { if (good >= total - 1) return onWin(); body.innerHTML = `<div class="reward"><div class="big">😢 ${good} / ${total}</div>${total - 1}개 이상 맞혀야 해요. 새 문제로 다시!</div><div class="brow" style="justify-content:center"><button class="bbtn gold" id="sqr">다시 도전</button></div>`; $("sqr").onclick = () => { idx = 0; good = 0; show(); }; pzKey = null; } else show(); }; };
+    body.querySelectorAll("[data-i]").forEach((b) => (b.onclick = () => finish(opts[b.dataset.i].ok, b)));
+    pzKey = (e) => { const k = parseInt(e.key, 10); if (k >= 1 && k <= opts.length) body.querySelectorAll("[data-i]")[k - 1].click(); };
+    MG.raf(tok, bar, (dt) => { if (done) return false; tl -= dt; bar.style.width = Math.max(0, (tl / Tm) * 100) + "%"; if (tl <= 0) { finish(false, null); return false; } });
+  }
+  show();
+}
+
+// ---------- 11. 기억력 카드 ----------
+function mgMemory(onWin) {
+  const body = $("pz-body"), n = G.n, k = n < 10 ? 6 : 8; let pool = PAIRS.filter((p) => p.a.length <= 10 && p.b.length <= 18); if (pool.length < k) pool = PAIRS.slice();
+  const pairs = [...pool].sort(() => Math.random() - 0.5).slice(0, k), cards = []; pairs.forEach((p, i) => { cards.push({ t: p.a, i, side: "a" }, { t: p.b, i, side: "b" }); }); cards.sort(() => Math.random() - 0.5);
+  let first = -1, lock = false, left = k;
+  body.innerHTML = MG.bar(["🃏 기억력 카드", "용어와 뜻의 짝을 찾으세요", "틀리면 +1초"]) + `<div id="mc" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">${cards.map((c, i) => `<button data-i="${i}" class="mt" style="min-height:74px;font-size:12.5px;padding:4px">❓</button>`).join("")}</div>`;
+  const bs = [...body.querySelectorAll("[data-i]")];
+  bs.forEach((b) => (b.onclick = () => {
+    const i = +b.dataset.i; if (lock || b.classList.contains("done") || i === first) return; SFX.click(); b.textContent = cards[i].t; b.classList.add("sel");
+    if (first < 0) { first = i; return; }
+    const a = first, c = cards[a], d = cards[i]; first = -1; lock = true;
+    if (c.i === d.i) { setTimeout(() => { bs[a].className = "mt done"; b.className = "mt done"; SFX.ok(); lock = false; if (--left === 0) MG.win(onWin, `<div class="fb ok" style="margin-top:8px">🃏 모든 짝을 찾았어요!</div>`); }, 350); }
+    else { addPenalty(1, "짝 불일치"); setTimeout(() => { bs[a].className = "mt"; b.className = "mt"; bs[a].textContent = "❓"; b.textContent = "❓"; lock = false; }, 900); }
+  }));
+  pzKey = null;
+}
+
+// ---------- 등록 : 이름 / 아이콘 / 설명 / 층 편입 조건 ----------
+const MINI_NEW = [
+  { id: "t7", nm: "7초 타이밍", ic: "⏱️", desc: "사라지는 숫자를 보며 정확히 7초에 멈춰요", run: mgTiming7, spr: "wardrobe", w: 2, h: 3, min: 1, wt: 1.6 },
+  { id: "pressure", nm: "압력 게이지", ic: "🧭", desc: "흔들리는 바늘을 목표 압력 구간에서 멈춰요", run: mgPressure, spr: "furnace", w: 2, h: 3, min: 2, wt: 1.5 },
+  { id: "torque", nm: "토크 렌치", ic: "🔧", desc: "규정 토크 N·m 에 맞춰 볼트를 조여요", run: mgTorque, spr: "bench", w: 3, h: 3, min: 2, wt: 1.5 },
+  { id: "memory", nm: "기억력 카드", ic: "🃏", desc: "용어와 뜻 카드의 짝을 찾아요", run: mgMemory, spr: "dresser", w: 3, h: 3, min: 1, wt: 1.5 },
+  { id: "speedox", nm: "스피드 퀴즈", ic: "⚡", desc: "제한 시간 안에 기출 문제를 풀어요", run: mgSpeedQuiz, spr: "bookshelf", w: 3, h: 2, min: 2, wt: 1.8 },
+  { id: "sort", nm: "부품 분류", ic: "🧺", desc: "떨어지는 부품을 알맞은 통에 분류해요", run: mgSort, spr: "cabinet", w: 3, h: 3, min: 3, wt: 1.5 },
+  { id: "pipes", nm: "배관 연결", ic: "🚰", desc: "타일을 돌려 입구에서 출구까지 물길을 이어요", run: mgPipes, spr: "furnace", w: 2, h: 3, min: 3, wt: 1.4 },
+  { id: "hazscene", nm: "안전 점검", ic: "🔍", desc: "현장 그림에서 위험 요소만 골라 찾아요", run: mgHazardScene, spr: "cabinet", w: 3, h: 3, min: 4, wt: 1.5 },
+  { id: "assemble", nm: "분해·조립", ic: "🛠️", desc: "제한 시간 안에 작업 순서를 맞춰요", run: mgAssemble, spr: "bench", w: 3, h: 3, min: 5, wt: 1.4 },
+  { id: "circuit", nm: "유압 회로", ic: "🛢️", desc: "기호를 골라 유압 회로를 완성해요", run: mgCircuit, spr: "wardrobe", w: 2, h: 3, min: 6, wt: 1.4 },
+  { id: "detective", nm: "고장 탐정", ic: "🕵️", desc: "단서를 모아 고장 원인을 추리해요", run: mgDetective, spr: "dresser", w: 3, h: 3, min: 7, wt: 1.5 },
+];
+const MINI_MAP = {};
+MINI_NEW.forEach((m) => { MINI_MAP[m.id] = m; PUZ[m.id] = { nm: m.nm, ic: m.ic, spr: m.spr, w: m.w, h: m.h, min: m.min, wt: m.wt }; });
+
+// 로비 '미니게임 연습'에 보여줄 전체 목록 (기존 + 신규)
+const MINI_ALL = [
+  { id: "quiz", nm: "지식 책장", ic: "📚", desc: "기출 문제를 풀어요", run: (w) => runQuiz(G.n <= 2 ? 1 : G.n <= 6 ? 2 : 3, w) },
+  { id: "ox", nm: "OX 보관함", ic: "⭕", desc: "OX 5문제 중 4개 이상", run: (w) => runOX(w) },
+  { id: "match", nm: "부품 서랍", ic: "🧩", desc: "용어와 설명 짝맞추기", run: (w) => runMatch(w) },
+  { id: "order", nm: "정비 작업대", ic: "🔢", desc: "작업 순서 맞추기", run: (w) => runOrder(w) },
+  { id: "valves", nm: "보일러 밸브", ic: "🔧", desc: "밸브 불 켜기 퍼즐", run: (w) => runValves(w) },
+  { id: "simon", nm: "경보 제어반", ic: "🚨", desc: "패드 순서 기억하기", run: (w) => runSimon(w) },
+  { id: "bolts", nm: "플랜지 조립대", ic: "🔩", desc: "볼트를 별 순서로 조이기", run: (w) => runBolts(w) },
+  { id: "hazard", nm: "작업장 점검판", ic: "⚠️", desc: "위험 요소 찾기 (목록형)", run: (w) => runHazard(w) },
+  { id: "lube", nm: "윤활 점검대", ic: "🛢️", desc: "알맞은 윤활 방법 고르기", run: (w) => runPick(LUBE, 3, "🛢️ 알맞은 윤활 방법을 고르세요", w) },
+  { id: "diag", nm: "고장 진단반", ic: "🩺", desc: "증상의 원인 고르기", run: (w) => runPick(DIAG, 3, "🩺 증상의 원인을 고르세요", w) },
+  { id: "gauge", nm: "측정 공구함", ic: "📏", desc: "마이크로미터 눈금 읽기", run: (w) => runGauge(w) },
+].concat(MINI_NEW);
+
+// ---------- 로비 : 미니게임 연습 모드 ----------
+let miniLevel = 5;
+function openMini() {
+  closeModal("lobby"); const body = $("mini-body"); G.on = false;
+  body.innerHTML = `<div class="sub">층 난이도를 고르고 하고 싶은 미니게임을 눌러보세요. 연습 모드는 기록·시간에 영향이 없어요. (문제를 풀면 오답노트에는 반영돼요)</div>
+    <div style="display:flex;align-items:center;gap:8px;margin:8px 0">난이도 <input type="range" id="mini-lv" min="1" max="${MAX_FLOOR}" value="${Math.min(miniLevel, MAX_FLOOR)}" style="flex:1"> <b id="mini-lvt">${Math.min(miniLevel, MAX_FLOOR)}층 수준</b></div>
+    <div id="mini-list" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${MINI_ALL.map((m) => `<button class="mt" data-id="${m.id}" style="text-align:left;padding:10px"><div style="font-size:22px">${m.ic} <b style="font-size:14px">${m.nm}</b></div><small style="color:#a9a3c9">${m.desc}</small></button>`).join("")}</div>`;
+  openModal("mini");
+  const lv = $("mini-lv"); lv.oninput = () => { miniLevel = +lv.value; $("mini-lvt").textContent = miniLevel + "층 수준"; };
+  body.querySelectorAll("[data-id]").forEach((b) => (b.onclick = () => { ensureAudio(); startMini(b.dataset.id); }));
+}
+function startMini(id) {
+  const m = MINI_ALL.find((x) => x.id === id); if (!m) return; closeModal("mini");
+  G.prevN = G.n; G.n = clamp(miniLevel, 1, MAX_FLOOR); G.used = new Set(); G.clock = false;
+  pzOpen(m.ic + " " + m.nm, ["연습 모드", G.n + "층 수준"], { practice: true, mini: id });
+  m.run(() => {
+    const b = $("pz-body"); pzKey = null; SFX.win();
+    b.innerHTML = `<div class="reward"><div class="big">🎉 클리어!</div>${m.ic} ${m.nm} 성공!</div><div class="brow" style="justify-content:center"><button class="bbtn gold" id="mn-again">한 번 더</button><button class="bbtn main" id="mn-list">목록으로</button></div>`;
+    $("mn-again").onclick = () => { pzLeave(); startMini(id); }; $("mn-list").onclick = () => { pzLeave(); };
+  });
+}
+function leavePractice() { if (G.prevN != null) { G.n = G.prevN; G.prevN = null; } openMini(); }
+
+MINI_ALL.unshift({ id: "review", nm: "5분 복습", ic: "🎓", desc: "기출 10문제 · 틀린 문제가 우선 나와요 (등하교 복습용)", run: (w) => runQuiz(10, w) });
+
+// ---------- 장치 목록 : 길이 답답할 때 바로 가기 / 바로 풀기 ----------
+function reachInfo() {
+  const f = G.f, W = f.W, H = f.H, prev = new Int32Array(W * H).fill(-2), q = [PL.x + PL.y * W]; prev[q[0]] = -1;
+  const pass = (x, y) => { if (x < 0 || y < 0 || x >= W || y >= H) return false; const sd = f.solid[y * W + x]; if (!sd) return true; if (sd === 3) { const d = f.doors.find((o) => o.x === x && o.y === y); return !!(d && (d.open || G.keys.has(d.color))); } return false; };
+  for (let h = 0; h < q.length; h++) { const c = q[h], x = c % W, y = (c / W) | 0; for (const [dx, dy] of DIRS) { const nx = x + dx, ny = y + dy; if (pass(nx, ny) && prev[ny * W + nx] === -2) { prev[ny * W + nx] = c; q.push(ny * W + nx); } } }
+  return { prev, W };
+}
+function pathTo(info, gx, gy) { const out = []; let c = gx + gy * info.W; while (c >= 0 && info.prev[c] !== -1) { out.push([c % info.W, (c / info.W) | 0]); c = info.prev[c]; } return out.reverse(); }
+function nearTile(info, o) {
+  let best = null, bl = 1e9;
+  for (let y = o.y - 1; y <= o.y + o.h; y++) for (let x = o.x - 1; x <= o.x + o.w; x++) {
+    const inside = x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h, corner = (x < o.x || x >= o.x + o.w) && (y < o.y || y >= o.y + o.h); if (inside || corner) continue;
+    if (x < 0 || y < 0 || x >= info.W || info.prev[y * info.W + x] === -2) continue; const l = pathTo(info, x, y).length; if (l < bl) { bl = l; best = { x, y }; }
+  } return best;
+}
+function walkToObj(o) {
+  const info = reachInfo(), t = nearTile(info, o); if (!t) return toast("🔒 아직 갈 수 없는 곳이에요. 열쇠로 문을 먼저 열어요!");
+  const cx = clamp(PL.x, o.x, o.x + o.w - 1), cy = clamp(PL.y, o.y, o.y + o.h - 1); // 대략적인 바라보는 방향
+  let fx = clamp(t.x, o.x, o.x + o.w - 1), fy = clamp(t.y, o.y, o.y + o.h - 1); const dx = fx - t.x, dy = fy - t.y;
+  const face = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 0 : 2);
+  G.auto = { path: pathTo(info, t.x, t.y), face }; closeModal("stl"); toast("🚶 자동 이동 중… (방향키를 누르면 멈춰요)");
+}
+function openStl() {
+  if (!G.f || !G.n || !G.clock) return toast("층 안에서 정비반장과 먼저 이야기해요!");
+  const f = G.f, info = reachInfo(), body = $("stl-body");
+  const reach = (o) => !!nearTile(info, o);
+  let h = `<div class="sub">길이 답답하면 여기서 바로 이동하거나 <b>바로 풀기</b>를 눌러요. (열쇠로 열린 길까지만 갈 수 있어요)</div>`;
+  f.stations.forEach((st) => { const sp = PUZ[st.type], rw = st.reward, ok = reach(st); h += `<div class="flrow ${ok || st.solved ? "" : "lock"}"><div class="no" style="font-size:22px">${st.solved ? "✅" : sp.ic}</div><div class="inf"><b>${sp.nm}</b><small>${rewardText(rw)}${ok || st.solved ? "" : " · 🔒 문 너머"}</small></div><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="bbtn" data-w="${st.id}" ${ok && !st.solved ? "" : "disabled"}>🚶 이동</button><button class="bbtn gold" data-s="${st.id}" ${ok && !st.solved ? "" : "disabled"}>⚡ 바로 풀기</button></div></div>`; });
+  const exOk = reach(f.ex);
+  h += `<div class="flrow ${exOk ? "" : "lock"}"><div class="no" style="font-size:22px">🪜</div><div class="inf"><b>출구 계단</b><small>코드를 모두 모았으면 입력!</small></div><div style="display:flex;gap:4px"><button class="bbtn" data-w="ex" ${exOk ? "" : "disabled"}>🚶 이동</button><button class="bbtn gold" data-s="ex" ${exOk ? "" : "disabled"}>⚡ 코드 입력</button></div></div>`;
+  body.innerHTML = h; openModal("stl");
+  body.querySelectorAll("[data-w]").forEach((b) => (b.onclick = () => walkToObj(b.dataset.w === "ex" ? f.ex : f.stations[+b.dataset.w])));
+  body.querySelectorAll("[data-s]").forEach((b) => (b.onclick = () => { closeModal("stl"); if (b.dataset.s === "ex") openExit(); else openStation(f.stations[+b.dataset.s]); }));
+}
+$("stl-close").onclick = () => closeModal("stl"); $("h-list").onclick = openStl;
+
+
+// =====================================================================
+//  모의고사 모드 (로비) : 실전 60문제 / 미니 20문제 / 약점 집중 20문제
+// =====================================================================
+const EXAM_MODES = {
+  full: { nm: "실전 모의고사", ic: "📝", n: 60, min: 60, desc: "실제 시험처럼 60문제 · 60분 · 60점 이상 합격" },
+  mini: { nm: "미니 모의고사", ic: "⏱️", n: 20, min: 20, desc: "20문제 · 20분 — 짧게 실력 점검" },
+  weak: { nm: "약점 집중", ic: "🎯", n: 20, min: 20, desc: "오답노트·정답률 낮은 과목 위주 20문제" },
+};
+let EX = null;
+function examPick(mode) {
+  const M = EXAM_MODES[mode], by = {}; QUESTIONS.forEach((q) => (by[q.s] = by[q.s] || []).push(q));
+  if (mode === "weak") {
+    const wrong = shuffle(QUESTIONS.filter((q) => save.wrong[q.id])), rate = (s) => { const a = save.subj[s]; return a && a[0] >= 3 ? a[1] / a[0] : 0.5; };
+    const wk = SUBJECTS.slice().sort((a, b) => rate(a) - rate(b)).slice(0, 3), pool = shuffle(QUESTIONS.filter((q) => !save.wrong[q.id] && wk.includes(q.s))), rest = shuffle(QUESTIONS.filter((q) => !save.wrong[q.id] && !wk.includes(q.s)));
+    return wrong.slice(0, 12).concat(pool, rest).slice(0, M.n);
+  }
+  const tot = QUESTIONS.length, quota = {}; let used = 0; const rem = [];
+  SUBJECTS.forEach((s) => { const raw = ((by[s] || []).length / tot) * M.n, q = Math.min((by[s] || []).length, Math.max(1, Math.floor(raw))); quota[s] = q; used += q; rem.push([s, raw - Math.floor(raw)]); });
+  rem.sort((a, b) => b[1] - a[1]); for (let i = 0; used < M.n && i < 200; i++) { const s = rem[i % rem.length][0]; if (quota[s] < (by[s] || []).length) { quota[s]++; used++; } }
+  const out = []; SUBJECTS.forEach((s) => out.push(...shuffle(by[s] || []).slice(0, quota[s]))); return shuffle(out).slice(0, M.n);
+}
+function openExamMenu() {
+  closeModal("lobby"); G.on = false; const ex = save.exam || {};
+  $("exam-title").textContent = "📝 모의고사"; $("exam-leave").textContent = "로비로";
+  $("exam-body").innerHTML = `<div class="sub">정답은 제출한 뒤에 한꺼번에 알려줘요. 틀린 문제는 오답노트에 자동으로 들어가요.${ex.runs ? `<br>실전 모의고사 <b>${ex.runs}회</b> 응시 · 최고 <b>${ex.best}점</b>` : ""}</div>` +
+    Object.keys(EXAM_MODES).map((k) => { const m = EXAM_MODES[k]; return `<button class="mt" data-m="${k}" style="width:100%;text-align:left;padding:12px;margin:6px 0"><div style="font-size:20px">${m.ic} <b>${m.nm}</b></div><small style="color:#a9a3c9">${m.desc}</small></button>`; }).join("") +
+    `<div class="sub" style="margin-top:10px">💡 모르는 문제는 ⭐ 표시를 해 두고 나중에 다시 볼 수 있어요. 키보드 1~4(보기), ← →(이동)</div>`;
+  openModal("exam"); EX = null;
+  $("exam-body").querySelectorAll("[data-m]").forEach((b) => (b.onclick = () => { ensureAudio(); startExam(b.dataset.m); }));
+}
+function startExam(mode) {
+  const M = EXAM_MODES[mode], qs = examPick(mode); if (!qs.length) return toast("문제가 부족해요.");
+  EX = { mode, qs: qs.map((q) => ({ q, opts: shuffle(q.o.map((t, i) => ({ t, ok: i === 0 }))), sel: -1, mark: false })), i: 0, left: M.min * 60, done: false, t0: performance.now() };
+  $("exam-title").textContent = M.ic + " " + M.nm; $("exam-leave").textContent = "나가기"; renderExam();
+  clearInterval(EX.timer); EX.timer = setInterval(() => { if (!EX || EX.done || !$("exam").classList.contains("open")) { if (EX) clearInterval(EX.timer); return; } EX.left--; const el = $("ex-time"); if (el) { el.textContent = fmtMS(EX.left); el.style.color = EX.left < 60 ? "#ff7a7a" : ""; } if (EX.left <= 0) submitExam(true); }, 1000);
+}
+const fmtMS = (s) => { s = Math.max(0, s); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+function renderExam() {
+  const E = EX, it = E.qs[E.i], q = it.q, N = E.qs.length, answered = E.qs.filter((x) => x.sel >= 0).length;
+  $("exam-body").innerHTML = `<div class="pzbar"><span class="chip">${E.i + 1} / ${N}</span><span class="chip">답한 문제 ${answered}/${N}</span><span class="chip time" id="ex-time">${fmtMS(E.left)}</span><span class="chip">${SUBJ_ICON[q.s] || "📘"} ${SUBJ_NAME[q.s] || q.s}</span></div>
+    <div id="pzq">${E.i + 1}. ${escHtml(q.q)}</div>${q.img ? `<img src="${q.img}" alt="문제 그림" style="max-width:100%;max-height:180px;display:block;margin:0 auto 10px;background:#fff">` : ""}
+    ${it.opts.map((o, i) => `<button class="opt ${it.sel === i ? "ok" : ""}" data-o="${i}" style="${it.sel === i ? "border-color:#3b57c9;background:#1d2a5c" : ""}"><b>${"①②③④"[i]}</b> ${escHtml(o.t)}</button>`).join("")}
+    <div class="brow" style="justify-content:space-between"><button class="bbtn" id="ex-prev" ${E.i ? "" : "disabled"}>◀ 이전</button><button class="bbtn ${it.mark ? "gold" : ""}" id="ex-mark">⭐ ${it.mark ? "표시됨" : "나중에 보기"}</button><button class="bbtn main" id="ex-next" ${E.i < N - 1 ? "" : "disabled"}>다음 ▶</button></div>
+    <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin:12px 0">${E.qs.map((x, i) => `<button data-g="${i}" style="padding:6px 0;border-radius:6px;border:2px solid ${i === E.i ? "#ffd166" : "#4a4272"};background:${x.sel >= 0 ? "#1d2a5c" : "#241f3d"};color:#fff;font-size:12px;cursor:pointer">${x.mark ? "⭐" : i + 1}</button>`).join("")}</div>
+    <div class="brow" style="justify-content:center"><button class="bbtn gold" id="ex-submit">📤 제출하고 채점하기</button></div>`;
+  $("exam-body").querySelectorAll("[data-o]").forEach((b) => (b.onclick = () => { it.sel = +b.dataset.o; SFX.click(); renderExam(); }));
+  $("exam-body").querySelectorAll("[data-g]").forEach((b) => (b.onclick = () => { E.i = +b.dataset.g; renderExam(); }));
+  $("ex-prev").onclick = () => { E.i--; renderExam(); }; $("ex-next").onclick = () => { E.i++; renderExam(); };
+  $("ex-mark").onclick = () => { it.mark = !it.mark; renderExam(); }; $("ex-submit").onclick = () => submitExam(false);
+  $("exam").scrollTop = 0;
+}
+window.addEventListener("keydown", (e) => {
+  if (!EX || EX.done || !$("exam").classList.contains("open") || /INPUT|TEXTAREA/.test((e.target || {}).tagName || "")) return; const it = EX.qs[EX.i], k = parseInt(e.key, 10);
+  if (k >= 1 && k <= it.opts.length) { it.sel = k - 1; renderExam(); } else if (e.key === "ArrowRight" && EX.i < EX.qs.length - 1) { EX.i++; renderExam(); } else if (e.key === "ArrowLeft" && EX.i > 0) { EX.i--; renderExam(); }
+});
+function submitExam(auto) {
+  const E = EX; if (!E || E.done) return; const un = E.qs.filter((x) => x.sel < 0).length;
+  if (!auto && !confirm(un ? `아직 안 푼 문제가 ${un}개 있어요. 그래도 제출할까요?` : "제출하고 채점할까요?")) return;
+  E.done = true; clearInterval(E.timer); const N = E.qs.length; let good = 0; const sub = {};
+  E.qs.forEach((x) => { const ok = x.sel >= 0 && x.opts[x.sel].ok; x.ok = ok; if (ok) good++; const s = sub[x.q.s] || (sub[x.q.s] = [0, 0]); s[0]++; if (ok) s[1]++; recordAnswer(x.q, ok); });
+  const score = Math.round((good / N) * 100), pass = score >= 60, used = Math.round((performance.now() - E.t0) / 1000); let newBest = false;
+  if (E.mode === "full" && !isAdmin()) { const ex = save.exam || (save.exam = { runs: 0, best: 0 }); ex.runs++; if (score > ex.best) { ex.best = score; newBest = true; } writeSave(); }
+  pass ? SFX.win() : SFX.ng();
+  const wrong = E.qs.filter((x) => !x.ok);
+  $("exam-title").textContent = "📋 채점 결과"; $("exam-leave").textContent = "닫기";
+  $("exam-body").innerHTML = `<div class="reward" style="border-color:${pass ? "#43c183" : "#ff7a7a"}"><div class="big" style="font-size:40px">${score}점</div><div style="font-size:18px;font-weight:800">${pass ? "🎉 합격권이에요!" : "😢 조금만 더!"} <small style="color:#a9a3c9">(합격 기준 60점)</small></div>
+    <div class="sub">${good} / ${N} 정답 · 미응답 ${un} · 소요 ${fmtMS(used)}${auto ? " · ⏰ 시간 종료" : ""}${newBest ? " · 🏅 최고 점수 갱신!" : ""}</div></div>
+    <div class="sub"><b>과목별 정답률</b></div>${Object.keys(sub).sort((a, b) => sub[a][1] / sub[a][0] - sub[b][1] / sub[b][0]).map((s) => { const r = Math.round((sub[s][1] / sub[s][0]) * 100); return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13px"><span style="width:112px">${SUBJ_ICON[s] || ""} ${SUBJ_NAME[s] || s}</span><div style="flex:1;height:12px;background:#0b0914;border-radius:6px;overflow:hidden"><div style="height:100%;width:${r}%;background:${r >= 60 ? "#43c183" : "#ff7a7a"}"></div></div><span style="width:70px;text-align:right">${sub[s][1]}/${sub[s][0]} (${r}%)</span></div>`; }).join("")}
+    <div class="sub" style="margin-top:12px"><b>❌ 틀린 문제 ${wrong.length}개</b> (오답노트에 저장됐어요)</div>
+    ${wrong.map((x) => `<details class="fb ng" style="margin:6px 0"><summary style="cursor:pointer">${escHtml(x.q.q.slice(0, 60))}${x.q.q.length > 60 ? "…" : ""}</summary><div style="margin-top:6px">${x.q.img ? `<img src="${x.q.img}" style="max-width:100%;max-height:150px;background:#fff;display:block;margin:4px 0">` : ""}<div>내 답: <b>${x.sel >= 0 ? escHtml(x.opts[x.sel].t) : "(미응답)"}</b></div><div>정답: <b style="color:#7fe3a8">${escHtml(x.q.o[0])}</b></div><div style="color:#a9a3c9">${escHtml(x.q.e || "")}</div></div></details>`).join("") || '<div class="fb ok">전부 맞혔어요! 👏</div>'}
+    <div class="brow" style="justify-content:center"><button class="bbtn gold" id="ex-again">🔁 다시 풀기</button><button class="bbtn main" id="ex-menu">모의고사 메뉴</button></div>`;
+  $("ex-again").onclick = () => startExam(E.mode); $("ex-menu").onclick = openExamMenu; $("exam").scrollTop = 0;
+}
+$("exam-leave").onclick = () => { if (EX && !EX.done && !confirm("지금 나가면 이번 시험은 사라져요. 나갈까요?")) return; if (EX) clearInterval(EX.timer); EX = null; closeModal("exam"); openLobby(); };
+
 // ---------- 순찰 로봇과 충돌 : 긴급 문제 ----------
 function guardEncounter(g) {
   if (PZ) return; SFX.alarm(); G.freeze = false;
@@ -1565,7 +1998,7 @@ function guardEncounter(g) {
 // =====================================================================
 const SESS_KEY = "esc_session_v1";
 let session = null, guest = false, serverRev = 0, clockOffset = 0, profileName = null;
-function newSave() { return { v: 1, maxFloor: 0, best: {}, stats: { a: 0, c: 0 }, subj: {}, wrong: {}, runs: 0, tutorialDone: false }; }
+function newSave() { return { v: 1, maxFloor: 0, best: {}, stats: { a: 0, c: 0 }, subj: {}, wrong: {}, exam: { runs: 0, best: 0 }, runs: 0, tutorialDone: false }; }
 function normSave(s) {
   const d = newSave(); if (!s || typeof s !== "object") return d;
   d.maxFloor = clamp(Number(s.maxFloor) || 0, 0, 99); d.runs = Number(s.runs) || 0; d.tutorialDone = !!s.tutorialDone;
@@ -1573,6 +2006,7 @@ function normSave(s) {
   if (s.stats) { d.stats.a = Number(s.stats.a) || 0; d.stats.c = Math.min(d.stats.a, Number(s.stats.c) || 0); }
   if (s.subj && typeof s.subj === "object") Object.keys(s.subj).forEach((k) => { const a = s.subj[k]; if (Array.isArray(a)) d.subj[k] = [Number(a[0]) || 0, Number(a[1]) || 0]; });
   if (s.wrong && typeof s.wrong === "object") Object.keys(s.wrong).forEach((k) => { if (Number(s.wrong[k]) > 0) d.wrong[k] = Number(s.wrong[k]); });
+  if (s.exam && typeof s.exam === "object") d.exam = { runs: Number(s.exam.runs) || 0, best: clamp(Number(s.exam.best) || 0, 0, 100) };
   return d;
 }
 let save = newSave();
@@ -1694,11 +2128,12 @@ function openLobby() {
     const p = floorParams(n), th = themeFor(n), ok = n <= max, b = save.best[n];
     h += `<div class="flrow ${ok ? "" : "lock"}"><div class="no">${n}층</div><div class="inf"><b>${escHtml(th.nm)}</b><small>방 ${p.cols * p.rows}개 · 코드 ${p.digits}자리${p.locks ? " · 🔒" + p.locks : ""}${p.guards ? " · 🪵" + p.guards : ""}${b ? " · 🏅 " + fmtTime(b) : ""}</small></div><button class="bbtn ${b ? "main" : "gold"}" data-n="${n}" ${ok ? "" : "disabled"}>${ok ? (b ? "재도전" : "도전!") : "🔒"}</button></div>`;
   }
-  h += `<div class="sub" style="text-align:center;margin-top:10px">더 높은 층은 계속 추가될 예정이에요! 🏗️</div><div class="brow" style="justify-content:space-between"><button class="bbtn" id="lb-logout">로그아웃</button><button class="bbtn main" id="lb-hof">🏆 랭킹 보기</button></div>`;
+  h += `<div class="sub" style="text-align:center;margin-top:10px">더 높은 층은 계속 추가될 예정이에요! 🏗️</div><div class="brow" style="justify-content:space-between"><button class="bbtn" id="lb-logout">로그아웃</button><button class="bbtn gold" id="lb-mini">🎮 미니게임 연습</button><button class="bbtn gold" id="lb-exam">📝 모의고사</button><button class="bbtn main" id="lb-hof">🏆 랭킹 보기</button></div>`;
   body.innerHTML = h; openModal("lobby");
   body.querySelectorAll("[data-n]").forEach((b) => (b.onclick = () => { ensureAudio(); startFloor(+b.dataset.n); }));
-  $("lb-logout").onclick = logout; $("lb-hof").onclick = () => { closeModal("lobby"); openHof(); };
+  $("lb-logout").onclick = logout; $("lb-mini").onclick = openMini; $("lb-exam").onclick = openExamMenu; $("lb-hof").onclick = () => { closeModal("lobby"); openHof(); };
 }
+$("mini-close").onclick = () => { closeModal("mini"); openLobby(); };
 $("lobby-close").onclick = () => { closeModal("lobby"); if (G.f && G.n && !G.clock && !$("result").classList.contains("open")) G.on = true; };
 $("h-lobby").onclick = () => { if (G.clock && !confirm("지금 층을 나가면 이번 도전은 사라져요. 로비로 갈까요?")) return; G.clock = false; G.on = false; Music.play("title"); openLobby(); };
 
@@ -1799,7 +2234,7 @@ const TitleScene = (() => {
 loadAssets(() => {
   initGame(); TitleScene.start(); tryResume(); setTMode("login");
   $("h-mus").style.opacity = musOn ? 1 : 0.4; $("h-snd").style.opacity = sndOn ? 1 : 0.4; updateNoteBtn();
-  window.__esc = { G, PL, startFloor, genFloor, save: () => save };
+  window.__esc = { startExam, openExamMenu, submitExam, EXs: () => EX, G, PL, startFloor, genFloor, save: () => save, MINI_ALL, startMini, openStation, openStl, setLv: (v) => { miniLevel = v; }, pz: () => PZ };
 });
 
 </script>
