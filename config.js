@@ -6,7 +6,7 @@
 // 3) EXTRA_QUESTIONS : 문제를 더 넣고 싶을 때 아래 목록에 추가하세요. (첫 번째 보기가 정답, 보기는 게임에서 자동으로 섞여요)
 window.ESC_CONFIG = {
   SERVER_URL: "https://script.google.com/macros/s/AKfycbwsZEQ2orj2BQ7bNZFb30HpXv_svmDIoIxPhPaXiakflmaWwh6U7LKAtEKK6Knp6bY/exec",
-  MAX_FLOOR: 50,
+  MAX_FLOOR: 30,
   EXTRA_QUESTIONS: [
     // { s: "안전", lv: 1, q: "문제 내용", o: ["정답", "오답1", "오답2", "오답3"], e: "해설" },
     //   s(과목): 안전 / 제도 / 요소 / 공유압 / 보전 / 측정      lv(난이도): 1 쉬움 · 2 보통 · 3 어려움
