@@ -187,7 +187,7 @@ p.help { font-size: 12.5px; color: var(--sub); text-align: center; margin: 10px 
   <div id="exam-body"></div>
 </div></div>
 
-<div class="modal" id="mini"><div class="mcard">
+<div class="modal" id="mgm"><div class="mcard">
   <div class="mhead"><h3>🎮 미니게임 연습</h3><button class="hbtn" id="mini-close">로비로</button></div>
   <div id="mini-body"></div>
 </div></div>
@@ -854,7 +854,7 @@ document.addEventListener("visibilitychange", () => { if (!actx) return; if (doc
 function toast(msg, ms) { const el = document.createElement("div"); el.className = "toast"; el.innerHTML = msg; $("toast").appendChild(el); setTimeout(() => el.remove(), ms || 2600); }
 const openModal = (id) => { $(id).classList.add("open"); };
 const closeModal = (id) => { $(id).classList.remove("open"); };
-const MODAL_IDS = ["lobby", "exam", "mini", "stl", "pz", "result", "hof", "note", "acct", "conflict", "adm", "help"];
+const MODAL_IDS = ["lobby", "exam", "mgm", "stl", "pz", "result", "hof", "note", "acct", "conflict", "adm", "help"];
 const anyModalOpen = () => MODAL_IDS.some((id) => $(id).classList.contains("open"));
 
 "use strict";
@@ -1854,12 +1854,12 @@ function openMini() {
   body.innerHTML = `<div class="sub">층 난이도를 고르고 하고 싶은 미니게임을 눌러보세요. 연습 모드는 기록·시간에 영향이 없어요. (문제를 풀면 오답노트에는 반영돼요)</div>
     <div style="display:flex;align-items:center;gap:8px;margin:8px 0">난이도 <input type="range" id="mini-lv" min="1" max="${MAX_FLOOR}" value="${Math.min(miniLevel, MAX_FLOOR)}" style="flex:1"> <b id="mini-lvt">${Math.min(miniLevel, MAX_FLOOR)}층 수준</b></div>
     <div id="mini-list" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${MINI_ALL.map((m) => `<button class="mt" data-id="${m.id}" style="text-align:left;padding:10px"><div style="font-size:22px">${m.ic} <b style="font-size:14px">${m.nm}</b></div><small style="color:#a9a3c9">${m.desc}</small></button>`).join("")}</div>`;
-  openModal("mini");
+  openModal("mgm");
   const lv = $("mini-lv"); lv.oninput = () => { miniLevel = +lv.value; $("mini-lvt").textContent = miniLevel + "층 수준"; };
   body.querySelectorAll("[data-id]").forEach((b) => (b.onclick = () => { ensureAudio(); startMini(b.dataset.id); }));
 }
 function startMini(id) {
-  const m = MINI_ALL.find((x) => x.id === id); if (!m) return; closeModal("mini");
+  const m = MINI_ALL.find((x) => x.id === id); if (!m) return; closeModal("mgm");
   G.prevN = G.n; G.n = clamp(miniLevel, 1, MAX_FLOOR); G.used = new Set(); G.clock = false;
   pzOpen(m.ic + " " + m.nm, ["연습 모드", G.n + "층 수준"], { practice: true, mini: id });
   m.run(() => {
@@ -1933,7 +1933,7 @@ function examPick(mode) {
 function openExamMenu() {
   closeModal("lobby"); G.on = false; const ex = save.exam || {};
   $("exam-title").textContent = "📝 모의고사"; $("exam-leave").textContent = "로비로";
-  $("exam-body").innerHTML = `<div class="sub">정답은 제출한 뒤에 한꺼번에 알려줘요. 틀린 문제는 오답노트에 자동으로 들어가요.${ex.runs ? `<br>실전 모의고사 <b>${ex.runs}회</b> 응시 · 최고 <b>${ex.best}점</b>` : ""}</div>` +
+  $("exam-body").innerHTML = `<div class="sub">정답은 제출한 뒤에 한꺼번에 알려줘요. 틀린 문제는 오답노트에 자동으로 들어가요.${ex.all ? `<br>총 <b>${ex.all}회</b> 응시${ex.runs ? ` · 실전 최고 <b>${ex.best}점</b>` : ""} · 최근 점수 ${(ex.hist || []).slice(-5).reverse().map((h) => `<b style="color:${h.s >= 60 ? "#7fe3a8" : "#ff8a8a"}">${h.s}</b>`).join(" · ")}` : ""}</div>` +
     Object.keys(EXAM_MODES).map((k) => { const m = EXAM_MODES[k]; return `<button class="mt" data-m="${k}" style="width:100%;text-align:left;padding:12px;margin:6px 0"><div style="font-size:20px">${m.ic} <b>${m.nm}</b></div><small style="color:#a9a3c9">${m.desc}</small></button>`; }).join("") +
     `<div class="sub" style="margin-top:10px">💡 모르는 문제는 ⭐ 표시를 해 두고 나중에 다시 볼 수 있어요. 키보드 1~4(보기), ← →(이동)</div>`;
   openModal("exam"); EX = null;
@@ -1970,7 +1970,7 @@ function submitExam(auto) {
   E.done = true; clearInterval(E.timer); const N = E.qs.length; let good = 0; const sub = {};
   E.qs.forEach((x) => { const ok = x.sel >= 0 && x.opts[x.sel].ok; x.ok = ok; if (ok) good++; const s = sub[x.q.s] || (sub[x.q.s] = [0, 0]); s[0]++; if (ok) s[1]++; recordAnswer(x.q, ok); });
   const score = Math.round((good / N) * 100), pass = score >= 60, used = Math.round((performance.now() - E.t0) / 1000); let newBest = false;
-  if (E.mode === "full" && !isAdmin()) { const ex = save.exam || (save.exam = { runs: 0, best: 0 }); ex.runs++; if (score > ex.best) { ex.best = score; newBest = true; } writeSave(); }
+  if (!isAdmin()) { const ex = save.exam || (save.exam = { runs: 0, best: 0, all: 0, hist: [] }); ex.hist = ex.hist || []; ex.all = (ex.all || 0) + 1; ex.hist.push({ m: E.mode, s: score, g: good, n: N, t: Date.now() }); if (ex.hist.length > 30) ex.hist.shift(); if (E.mode === "full") { ex.runs++; if (score > ex.best) { ex.best = score; newBest = true; } } writeSave(); }
   pass ? SFX.win() : SFX.ng();
   const wrong = E.qs.filter((x) => !x.ok);
   $("exam-title").textContent = "📋 채점 결과"; $("exam-leave").textContent = "닫기";
@@ -1998,7 +1998,7 @@ function guardEncounter(g) {
 // =====================================================================
 const SESS_KEY = "esc_session_v1";
 let session = null, guest = false, serverRev = 0, clockOffset = 0, profileName = null;
-function newSave() { return { v: 1, maxFloor: 0, best: {}, stats: { a: 0, c: 0 }, subj: {}, wrong: {}, exam: { runs: 0, best: 0 }, runs: 0, tutorialDone: false }; }
+function newSave() { return { v: 1, maxFloor: 0, best: {}, stats: { a: 0, c: 0 }, subj: {}, wrong: {}, exam: { runs: 0, best: 0, all: 0, hist: [] }, runs: 0, tutorialDone: false }; }
 function normSave(s) {
   const d = newSave(); if (!s || typeof s !== "object") return d;
   d.maxFloor = clamp(Number(s.maxFloor) || 0, 0, 99); d.runs = Number(s.runs) || 0; d.tutorialDone = !!s.tutorialDone;
@@ -2006,7 +2006,7 @@ function normSave(s) {
   if (s.stats) { d.stats.a = Number(s.stats.a) || 0; d.stats.c = Math.min(d.stats.a, Number(s.stats.c) || 0); }
   if (s.subj && typeof s.subj === "object") Object.keys(s.subj).forEach((k) => { const a = s.subj[k]; if (Array.isArray(a)) d.subj[k] = [Number(a[0]) || 0, Number(a[1]) || 0]; });
   if (s.wrong && typeof s.wrong === "object") Object.keys(s.wrong).forEach((k) => { if (Number(s.wrong[k]) > 0) d.wrong[k] = Number(s.wrong[k]); });
-  if (s.exam && typeof s.exam === "object") d.exam = { runs: Number(s.exam.runs) || 0, best: clamp(Number(s.exam.best) || 0, 0, 100) };
+  if (s.exam && typeof s.exam === "object") d.exam = { runs: Number(s.exam.runs) || 0, best: clamp(Number(s.exam.best) || 0, 0, 100), all: Number(s.exam.all) || 0, hist: (Array.isArray(s.exam.hist) ? s.exam.hist : []).slice(-30).map((h) => ({ m: EXAM_MODES[h.m] ? h.m : "mini", s: clamp(Number(h.s) || 0, 0, 100), g: Number(h.g) || 0, n: Number(h.n) || 0, t: Number(h.t) || 0 })) }; if (d.exam.all < d.exam.hist.length) d.exam.all = d.exam.hist.length;
   return d;
 }
 let save = newSave();
@@ -2133,7 +2133,7 @@ function openLobby() {
   body.querySelectorAll("[data-n]").forEach((b) => (b.onclick = () => { ensureAudio(); startFloor(+b.dataset.n); }));
   $("lb-logout").onclick = logout; $("lb-mini").onclick = openMini; $("lb-exam").onclick = openExamMenu; $("lb-hof").onclick = () => { closeModal("lobby"); openHof(); };
 }
-$("mini-close").onclick = () => { closeModal("mini"); openLobby(); };
+$("mini-close").onclick = () => { closeModal("mgm"); openLobby(); };
 $("lobby-close").onclick = () => { closeModal("lobby"); if (G.f && G.n && !G.clock && !$("result").classList.contains("open")) G.on = true; };
 $("h-lobby").onclick = () => { if (G.clock && !confirm("지금 층을 나가면 이번 도전은 사라져요. 로비로 갈까요?")) return; G.clock = false; G.on = false; Music.play("title"); openLobby(); };
 
@@ -2172,12 +2172,18 @@ function openNote() {
 $("h-note").onclick = openNote; $("note-close").onclick = () => closeModal("note");
 
 // ---------- 내 정보 ----------
+function examSummaryHtml() {
+  const ex = save.exam || {}, hist = ex.hist || []; if (!ex.all && !hist.length) return '<p>📝 <b>모의고사</b> : 아직 응시 기록이 없어요. 로비의 📝 모의고사에 도전해 보세요!</p>';
+  const full = hist.filter((h) => h.m === "full"), avg = full.length ? Math.round(full.slice(-5).reduce((a, h) => a + h.s, 0) / Math.min(5, full.length)) : null, d = (t) => { const x = new Date(t); return (x.getMonth() + 1) + "/" + x.getDate() + " " + String(x.getHours()).padStart(2, "0") + ":" + String(x.getMinutes()).padStart(2, "0"); };
+  return `<p>📝 <b>모의고사</b> · 총 응시 <b>${ex.all || hist.length}회</b> (실전 ${ex.runs || 0}회) · 실전 최고 <b>${ex.best || 0}점</b>${avg != null ? ` · 최근 실전 평균 <b>${avg}점</b>` : ""}</p>
+    <table class="mtable"><tr><th>날짜</th><th>종류</th><th>점수</th><th>정답</th></tr>${hist.slice(-8).reverse().map((h) => `<tr><td>${d(h.t)}</td><td>${EXAM_MODES[h.m].ic} ${EXAM_MODES[h.m].nm}</td><td><b style="color:${h.s >= 60 ? "#7fe3a8" : "#ff8a8a"}">${h.s}점</b> ${h.s >= 60 ? "합격" : ""}</td><td>${h.g}/${h.n}</td></tr>`).join("")}</table>`;
+}
 function openAcct() {
   const b = $("acct-body"), st = save.stats, rows = SUBJECTS.map((s) => { const a = save.subj[s] || [0, 0]; return `<tr><td>${SUBJ_ICON[s]} ${SUBJ_NAME[s]}</td><td>${a[1]} / ${a[0]}</td><td>${a[0] ? Math.round((a[1] / a[0]) * 100) : 0}%</td></tr>`; }).join("");
   const state = guest ? "게스트 (저장되지 않아요)" : { saving: "저장 중…", dirty: "저장 대기 중", error: "저장 실패 — 자동으로 다시 시도해요", saved: "서버에 저장됨", idle: "-" }[syncState];
   b.innerHTML = `<p>별명 <b>${escHtml(profileName || "")}</b>${session ? ` · 아이디 <b>${escHtml(session.id)}</b>` : ""}${isAdmin() ? " · 🛠 관리자" : ""}<br>☁ ${state}</p>
     <p>🏢 최고 <b>${save.maxFloor}층</b> · 총 도전 ${save.runs || 0}회 · 푼 문제 ${st.a}개 (정답률 ${st.a ? Math.round((st.c / st.a) * 100) : 0}%)</p>
-    <b>과목별 정답</b><table class="mtable"><tr><th>과목</th><th>정답/푼 수</th><th>정답률</th></tr>${rows}</table><div class="sub">정답률이 낮은 과목은 오답노트로 복습해 보세요!</div>`;
+    ${examSummaryHtml()}<b>과목별 정답</b><table class="mtable"><tr><th>과목</th><th>정답/푼 수</th><th>정답률</th></tr>${rows}</table><div class="sub">정답률이 낮은 과목은 오답노트로 복습해 보세요!</div>`;
   if (!guest && session) b.innerHTML += `<hr style="border-color:#332d58"><b>비밀번호 변경</b><div class="lrow"><input type="password" id="pw-old" placeholder="현재 비밀번호" maxlength="30"></div><div class="lrow"><input type="password" id="pw-new" placeholder="새 비밀번호 (4~30자)" maxlength="30"><button class="bbtn main" id="pw-go">변경</button></div><div id="pw-msg" class="lmsg"></div>
     <div class="brow" style="justify-content:space-between"><button class="bbtn" id="ac-logout">로그아웃</button><button class="bbtn" id="ac-reset" style="background:#7a2230">기록 초기화</button></div>`;
   openModal("acct");
