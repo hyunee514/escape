@@ -1011,18 +1011,18 @@ function genFloor(n) {
     }
     if (r() < 0.35) rugs.push({ x: rm.x + cx - 1, y: rm.y + cy - 1 });
   });
-  // 비밀 보물함 3개 (지도 · 탐지기 · 나침반) : 첫 잠긴 문 앞쪽(열쇠 없이 갈 수 있는 길) 방들에 놓아요.
+  // 비밀 보물함 3개 (지도 · 탐지기 · 나침반) : 시작에서 먼 방일수록 뒤에 나와요. (🗺 60% → 🔍 75% → 🧭 90% 깊이)
+  //  길이 열쇠로 막혀 있어도 괜찮아요 — 아이템은 있으면 편한 보너스일 뿐, 탈출에 꼭 필요하진 않아요.
   //  별도 난수(r2)를 쓰고 '장식 하나를 치우고 그 자리에' 놓기 때문에 기존 층 배치/퍼즐 위치는 바뀌지 않아요.
   {
     const r2 = mulberry32(n * 31337 + 7), byDepth = (ids) => ids.slice().sort((a, b) => depth[a] - depth[b]);
-    const early = byDepth(reach(0).filter((id) => id !== exitRoom.id && id !== start.id));
-    const rest = byDepth(allIds.filter((id) => id !== exitRoom.id && id !== start.id && !early.includes(id)));
-    const pool = early.concat(rest), L2 = pool.length;
-    const pick = [0, Math.floor((Math.min(L2, early.length || L2) - 1) / 2), Math.min(L2, early.length || L2) - 1];   // 가까운 방 → 중간 → 먼 방
+    const pool = byDepth(allIds.filter((id) => id !== exitRoom.id && id !== start.id)), L2 = pool.length;
+    const at = (f) => Math.min(L2 - 1, Math.max(0, Math.round((L2 - 1) * f)));
+    const pick = [at(0.6), at(0.75), at(0.9)];      // 시작에서 60% · 75% · 90% 깊이의 방 (숫자를 키우면 더 늦게 나와요)
     const inRoom = (o, rm) => o.x >= rm.x && o.x < rm.x + rw && o.y >= rm.y && o.y < rm.y + rh;
     const taken = (x, y) => stations.some((o) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) || decors.some((o) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) || (x >= ex.x && x < ex.x + ex.w && y >= ex.y && y < ex.y + ex.h);
     ["map", "scan", "compass"].forEach((kind, k) => {
-      const order = L2 ? pool.slice(pick[k]).concat(pool.slice(0, pick[k])) : [];
+      const order = L2 ? pool.slice(pick[k]).concat(pool.slice(0, pick[k]).reverse()) : [];
       for (const id of order) {
         const rm = rooms[id], ds = decors.filter((d) => inRoom(d, rm));
         let x = -1, y = -1;
@@ -1403,11 +1403,6 @@ function initGame() {
 // =====================================================================
 let PZ = null, pzKey = null;
 const WRONG_PEN = 20;       // 문제를 틀렸을 때 벌칙(초) — 힌트(+15초)보다 비싸게 해서 '찍기'가 이득이 되지 않게 해요
-const READ_SEC = 3;         // 해설을 최소한 이만큼은 보게 '다음' 버튼을 잠시 잠가요
-function holdNext(btn, sec) {
-  sec = sec || READ_SEC; const label = btn.textContent; let left = sec; btn.disabled = true; btn.textContent = label + " (" + left + ")";
-  const iv = setInterval(() => { if (!document.body.contains(btn)) return clearInterval(iv); left--; if (left <= 0) { clearInterval(iv); btn.disabled = false; btn.textContent = label; } else btn.textContent = label + " (" + left + ")"; }, 1000);
-}
 function recordAnswer(q, ok) {
   save.stats.a++; if (ok) save.stats.c++; G.fs.a++; if (ok) G.fs.c++;
   const sb = save.subj[q.s] || (save.subj[q.s] = [0, 0]); sb[0]++; if (ok) sb[1]++;
@@ -1474,7 +1469,7 @@ function runQuiz(need, onWin, o) {
     body.querySelectorAll(".opt").forEach((b, k) => { b.disabled = true; if (opts[k].ok) b.classList.add("ok"); else if (k === i) b.classList.add("ng"); });
     $("pz-hint").style.display = "none"; if (!ok) addPenalty(WRONG_PEN, "오답");
     $("pzfb").innerHTML = `<div class="fb ${ok ? "ok" : "ng"}"><b>${ok ? "⭕ 정답!" : "❌ 오답"}</b> ${escHtml(cur.e || "")}</div>`;
-    const nx = $("pz-next"); nx.style.display = ""; nx.textContent = ok && got + 1 >= need ? "완료 ▶" : o.guard && !ok ? "확인 ▶" : "다음 ▶"; holdNext(nx);
+    const nx = $("pz-next"); nx.style.display = ""; nx.textContent = ok && got + 1 >= need ? "완료 ▶" : o.guard && !ok ? "확인 ▶" : "다음 ▶";
     nx.onclick = () => { if (ok) { got++; if (got >= need) return onWin(); } else if (o.guard) return o.onFail(); show(); };
   }
   show();
@@ -1496,7 +1491,7 @@ function runOX(onWin) {
     if (done) return; done = true; const it = items[idx], ok = v === it.truth; recordAnswer(it.q, ok); ok ? (good++, SFX.ok()) : (SFX.ng(), addPenalty(WRONG_PEN, "오답"));
     $("ox-o").disabled = $("ox-x").disabled = true;
     $("pzfb").innerHTML = `<div class="fb ${ok ? "ok" : "ng"}"><b>${ok ? "⭕ 맞았어요!" : "❌ 틀렸어요"}</b> 이 문제의 정답은 <b>${escHtml(it.q.o[0])}</b><br>${escHtml(it.q.e || "")}</div>`;
-    const nx = $("pz-next"); nx.style.display = ""; holdNext(nx);
+    const nx = $("pz-next"); nx.style.display = "";
     nx.onclick = () => { idx++; if (idx >= 5) { if (good >= 4) return onWin(); body.innerHTML = `<div class="reward"><div class="big">😢 ${good} / 5</div>4개 이상 맞혀야 해요. 새 문제로 다시 도전!</div><div class="brow" style="justify-content:center"><button class="bbtn gold" id="ox-re">다시 도전</button></div>`; $("ox-re").onclick = start; pzKey = null; } else show(); };
   }
   start();
@@ -1707,7 +1702,7 @@ function runHazChoice(onWin, kind) {
     if (done) return; done = true; const ok = !!cur.opts[i].ok; ok ? (good++, SFX.ok()) : (SFX.ng(), addPenalty(WRONG_PEN, "오답"));
     body.querySelectorAll(".opt").forEach((b, k) => { b.disabled = true; if (cur.opts[k].ok) b.classList.add("ok"); else if (k === i) b.classList.add("ng"); });
     $("pzfb").innerHTML = `<div class="fb ${ok ? "ok" : "ng"}"><b>${ok ? "⭕ 정답!" : "❌ 오답"}</b> ${escHtml(cur.e)}</div>`;
-    const nx = $("pz-next"); nx.style.display = ""; holdNext(nx);
+    const nx = $("pz-next"); nx.style.display = "";
     nx.onclick = () => { idx++; if (idx >= ROUNDS) { if (good >= NEED) { pzKey = null; return onWin(); } body.innerHTML = `<div class="reward"><div class="big">😢 ${good} / ${ROUNDS}</div>${NEED}개 이상 맞혀야 해요. 새 문제로 다시 도전!</div><div class="brow" style="justify-content:center"><button class="bbtn gold" id="hz-re">다시 도전</button></div>`; $("hz-re").onclick = start; pzKey = null; } else show(); };
   }
   start();
@@ -2204,7 +2199,7 @@ $("h-help").onclick = () => {
     <p><b>🧩 장치 종류</b><br>📚 지식 책장(4지선다) · ⭕ OX 보관함 · 🧩 부품 서랍(짝맞추기) · 🔢 정비 작업대(순서 맞추기) · ⚠️ 작업장 점검판·🔍 안전 점검(4지선다형)</p>
     <p><b>🎁 보상</b> : 🔢 코드 숫자 / 🔑 열쇠(같은 색 🔒 문을 열어요) / 🎁 시간 보너스 / 🧰 비밀 보물함(아이템)</p>
     <p><b>🧰 탐험 아이템</b> : 길 중간의 <b>비밀 보물함</b>에서 기출 문제를 풀면 얻어요. (층마다 새로 모아요)<br>🗺 <b>설비 도면(지도)</b> — 모든 방·통로·잠긴 문 공개<br>🔍 <b>점검 탐지기</b> — 모든 장치와 보상 종류 공개 (📋 장치 목록에도 나와요)<br>🧭 <b>나침반</b> — 출구 위치 공개 + 화면 왼쪽 위 방향 화살표<br>문제를 푸는 시간이 들어가니, 얻을지 말지는 여러분의 선택!</p>
-    <p><b>⏱ 시간</b> : 문제를 틀리면 벌칙 +20초! 해설은 최소 3초 읽어야 넘어가요. 힌트도 시간을 써요. 가장 빨리 탈출한 사람이 랭킹 1위!</p>
+    <p><b>⏱ 시간</b> : 문제를 틀리면 벌칙 +20초! 힌트도 시간을 써요. 가장 빨리 탈출한 사람이 랭킹 1위!</p>
     <p><b>🪵 순찰 로봇</b> : 부딪히면 긴급 문제가 나와요. 맞히면 잠시 멈춰요.</p>
     <p><b>📝 오답노트</b> : 틀린 문제가 저장돼요. 같은 문제를 다시 만나 2번 맞히면 졸업! (틀린 문제는 더 자주 나와요)</p><p class="sub">이 게임의 문제는 설비보전기능사 필기 공부를 돕기 위해 만든 연습 문제예요. 시험 직전에는 기출문제집도 꼭 함께 풀어 보세요.</p>`;
   openModal("help");
