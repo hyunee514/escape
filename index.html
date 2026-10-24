@@ -1559,7 +1559,7 @@ function runQuiz(need, onWin, o) {
   const body = $("pz-body");
   function show() {
     cur = pickQuestion(o.weak, o.minLv); G.used.add(cur.id); opts = shuffle(cur.o.map((t, i) => ({ t, ok: i === 0 }))); hinted = false; done = false;
-    body.innerHTML = `<div class="pzbar"><span class="chip">${SUBJ_ICON[cur.s] || "📘"} ${SUBJ_NAME[cur.s] || cur.s}</span><span class="chip">난이도 ${stars(cur.lv)}</span>${o.guard ? "" : `<span class="chip">정답 ${got} / ${need}</span>`}${G.clock && G.combo > 0 ? `<span class="chip">🔥 연속 ${G.combo}</span>` : ""}</div>
+    body.innerHTML = `<div class="pzbar"><span class="chip">${SUBJ_ICON[cur.s] || "📘"} ${SUBJ_NAME[cur.s] || cur.s}</span><span class="chip">난이도 ${stars(cur.lv)}</span>${o.guard ? "" : `<span class="chip">정답 ${got} / ${need}</span>`}${G.clock && G.combo > 0 ? `<span class="chip">🔥 연속 ${G.combo}</span>` : ""}${o.hearts ? `<span class="chip">🎓 ${o.hearts()}</span>` : ""}</div>
       <div id="pzq">${escHtml(cur.q)}</div>${cur.img ? `<img src="${cur.img}" alt="문제 그림" style="max-width:100%;max-height:180px;display:block;margin:6px auto;background:#fff;border-radius:8px">` : ""}<div id="pzo">${opts.map((x, i) => `<button class="opt" data-i="${i}">${i + 1}. ${escHtml(x.t)}</button>`).join("")}</div><div id="pzfb"></div>
       <div class="brow"><button class="bbtn" id="pz-hint">💡 힌트 (+15초)</button><button class="bbtn main" id="pz-next" style="display:none">다음 ▶</button></div>`;
     body.querySelectorAll(".opt").forEach((b) => (b.onclick = () => answer(+b.dataset.i)));
@@ -1656,8 +1656,10 @@ function startBoss() {
   const f = G.f, hp0 = f.P.bossHp, n = G.n, gk = GUARD_KINDS[3];
   if (G.bossHp <= 0) return bossWin();
   SFX.caught("principal"); dexMark(3, 0);
-  pzOpen(gk.ic + " 교장 선생님 — 보스전!", ["❤".repeat(G.bossHp) + "🖤".repeat(hp0 - G.bossHp), "정답 " + G.bossHp + "개로 물리쳐요", "오답 +" + WRONG_PEN + "초"], { boss: true });
-  runQuiz(G.bossHp, bossWin, { boss: true, minLv: n <= 5 ? 1 : n <= 15 ? 2 : 3, onHit: () => { G.bossHp = Math.max(0, G.bossHp - 1); } });
+  const hearts = () => "❤".repeat(G.bossHp) + "🖤".repeat(hp0 - G.bossHp);
+  const setBar = () => { $("pz-bar").innerHTML = [hearts(), "남은 하트 " + G.bossHp + "개", "오답 +" + WRONG_PEN + "초"].map((c) => `<span class="chip">${c}</span>`).join(""); };
+  pzOpen(gk.ic + " 교장 선생님 — 보스전!", [], { boss: true }); setBar();
+  runQuiz(G.bossHp, bossWin, { boss: true, hearts, minLv: n <= 5 ? 1 : n <= 15 ? 2 : 3, onHit: () => { G.bossHp = Math.max(0, G.bossHp - 1); setBar(); toast("💥 정답! 교장 선생님 하트 −1  " + hearts(), 1800); } });
 }
 function openExit() {
   if (G.f.P.boss && !G.bossDone) return startBoss();
