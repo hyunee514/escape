@@ -879,7 +879,6 @@ const PUZ = {
   ox: { nm: "OX 보관함", ic: "⭕", spr: "cabinet", w: 3, h: 3, min: 1, wt: 2 },
   match: { nm: "부품 서랍", ic: "🧩", spr: "dresser", w: 3, h: 3, min: 1, wt: 2 },
   order: { nm: "정비 작업대", ic: "🔢", spr: "bench", w: 3, h: 3, min: 2, wt: 2 },
-  bolts: { nm: "플랜지 조립대", ic: "🔩", spr: "bench", w: 3, h: 3, min: 1, wt: 1.3 },
   hazard: { nm: "작업장 점검판", ic: "⚠️", spr: "cabinet", w: 3, h: 3, min: 1, wt: 1.3 },
   gauge: { nm: "측정 공구함", ic: "📏", spr: "wardrobe", w: 2, h: 3, min: 3, wt: 1.2 },
   chest: { nm: "보급 상자", ic: "🎁", spr: "chest", w: 1, h: 1, min: 1, wt: 0 },
@@ -1435,7 +1434,6 @@ function openStation(st) {
   else if (st.type === "ox") runOX(win);
   else if (st.type === "match") runMatch(win);
   else if (st.type === "order") runOrder(win);
-  else if (st.type === "bolts") runBolts(win);
   else if (st.type === "hazard") runHazard(win);
   else if (st.type === "gauge") runGauge(win);
   else if (MINI_MAP[st.type]) MINI_MAP[st.type].run(win);
@@ -1530,17 +1528,7 @@ function runOrder(onWin) {
 }
 
 
-// ---------- 미니게임 (플랜지 조립 · 위험 판별 · 눈금 읽기) ----------
-function runBolts(onWin) {
-  const body = $("pz-body"), N = 8, ord = [0, 4, 2, 6, 1, 5, 3, 7]; let k = 0;
-  body.innerHTML = `<div class="pzbar"><span class="chip">🔩 별(대각선) 순서로 조이세요 (오답 +4초)</span></div><div id="pzq">플랜지 볼트는 한쪽으로 돌아가며 조이지 않고, 마주 보는 볼트를 번갈아 조여요. 맨 위 볼트부터 시작!</div><div style="position:relative;width:220px;height:220px;margin:8px auto">${Array.from({ length: N }, (_, i) => { const a = (i / N) * Math.PI * 2 - Math.PI / 2; return `<button class="stepbtn" data-i="${i}" style="position:absolute;left:${90 + 80 * Math.cos(a)}px;top:${90 + 80 * Math.sin(a)}px;width:40px;height:40px;padding:0">🔩</button>`; }).join("")}</div>`;
-  body.querySelectorAll("button[data-i]").forEach((b) => (b.onclick = () => {
-    if (b.disabled) return;
-    if (Number(b.dataset.i) === ord[k]) { b.disabled = true; b.classList.add("ok"); b.textContent = ++k; SFX.ok(); if (k === N) setTimeout(onWin, 400); }
-    else { SFX.ng(); addPenalty(4, "조임 순서 오류"); b.classList.add("ng", "shake"); setTimeout(() => b.classList.remove("ng", "shake"), 450); }
-  }));
-  pzKey = null;
-}
+// ---------- 미니게임 (위험 판별 · 눈금 읽기) ----------
 function runHazard(onWin) { runHazChoice(onWin, "judge"); }
 function runGauge(onWin) {
   const body = $("pz-body"); let round = 0;
@@ -1803,7 +1791,6 @@ const MINI_ALL = [
   { id: "ox", nm: "OX 보관함", ic: "⭕", desc: "OX 5문제 중 4개 이상", run: (w) => runOX(w) },
   { id: "match", nm: "부품 서랍", ic: "🧩", desc: "용어와 설명 짝맞추기", run: (w) => runMatch(w) },
   { id: "order", nm: "정비 작업대", ic: "🔢", desc: "작업 순서 맞추기", run: (w) => runOrder(w) },
-  { id: "bolts", nm: "플랜지 조립대", ic: "🔩", desc: "볼트를 별 순서로 조이기", run: (w) => runBolts(w) },
   { id: "hazard", nm: "작업장 점검판", ic: "⚠️", desc: "위험 요소 찾기 (4지선다형)", run: (w) => runHazard(w) },
   { id: "gauge", nm: "측정 공구함", ic: "📏", desc: "마이크로미터 눈금 읽기", run: (w) => runGauge(w) },
 ].concat(MINI_NEW);
